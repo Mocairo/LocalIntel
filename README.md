@@ -88,7 +88,7 @@ timezone = "Asia/Shanghai"
 如果电脑关机或睡眠，程序无法在那个时间抓取。电脑唤醒后可以手动运行一次：
 
 ```powershell
-python -m app.pipeline --config .\config.toml --env .\.env
+python -m app.pipeline --env .\.env
 ```
 
 ## 开机自动启动
@@ -112,13 +112,13 @@ powershell -ExecutionPolicy Bypass -File .\uninstall_autostart.ps1
 运行今天的数据抓取、评分、摘要和报告生成：
 
 ```powershell
-python -m app.pipeline --config .\config.toml --env .\.env
+python -m app.pipeline --env .\.env
 ```
 
 指定日期运行：
 
 ```powershell
-python -m app.pipeline --date 2026-05-28 --config .\config.toml --env .\.env
+python -m app.pipeline --date 2026-05-28 --env .\.env
 ```
 
 生成结果会保存在：
@@ -194,20 +194,6 @@ python -m app.doctor --env .\.env
 ```
 
 如果看到 SSL/TLS handshake、timeout、connection failed 等错误，通常是当前网络访问这些 HTTPS API 不稳定。可以打开代理或 VPN，也可以在 `.env` 中配置 `HTTPS_PROXY` / `HTTP_PROXY`。
-
-## 本地诊断
-
-运行本地配置、目录、数据库和网络诊断：
-
-```powershell
-python -m app.doctor --config .\config.toml --env .\.env
-```
-
-只检查本地配置和数据库，不访问网络：
-
-```powershell
-python -m app.doctor --config .\config.toml --env .\.env --skip-network
-```
 
 ## 当前边界
 
