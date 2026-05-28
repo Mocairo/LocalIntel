@@ -1,0 +1,16 @@
+[interests]
+priority_topics = ["AI", "LLM", "Agent", "RAG", "coding agent", "Python", "developer tools", "open source", "research", "geopolitics", "global economy", "semiconductor", "supply chain", "energy", "climate", "central bank", "inflation", "trade", "technology regulation", "US China"]
+blocked_keywords = ["lottery", "sports", "celebrity", "football", "basketball", "彩票", "体育", "娱乐八卦"]
+preferred_languages = ["zh", "en"]
+
+[domains]
+blocked = [
+]
+preferred = ["openai.com", "anthropic.com", "github.blog", "research.google", "technologyreview.com", "arxiv.org", "github.com", "news.ycombinator.com", "reuters.com", "apnews.com", "bbc.com", "theguardian.com", "aljazeera.com", "npr.org", "dw.com", "news.un.org"]
+
+[weights]
+freshness = 0.35
+source_quality = 0.2
+personal_interest = 0.25
+popularity = 0.15
+source_bonus = 0.05
