@@ -23,6 +23,7 @@ from app.db import (
     record_user_event,
 )
 from app.pipeline import run_pipeline
+from app.status import build_runtime_status
 from app.weekly import build_weekly_report
 
 
@@ -74,6 +75,9 @@ class LocalIntelHandler(BaseHTTPRequestHandler):
                 category=first(params, "category"),
             )
             self.send_json({"clusters": clusters})
+            return
+        if parsed.path == "/api/runtime-status":
+            self.send_json(build_runtime_status(self.state.settings))
             return
         if parsed.path == "/api/item":
             params = parse_qs(parsed.query)
@@ -567,6 +571,55 @@ DASHBOARD_HTML = r"""<!doctype html>
       border-radius: 8px;
       background: var(--panel);
     }
+    .runtime-panel {
+      margin: 0 0 18px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow-soft);
+    }
+    .runtime-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .runtime-head h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+    .runtime-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .runtime-card {
+      min-width: 0;
+      padding: 10px 11px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel);
+    }
+    .runtime-card b {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .runtime-card span {
+      display: block;
+      margin-top: 5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .runtime-ok { color: var(--teal); }
+    .runtime-warn { color: var(--amber); }
+    .runtime-error { color: var(--red); }
     .progress-panel.show { display: block; }
     .progress-head {
       display: flex;
@@ -2493,6 +2546,7 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
     @media (max-width: 1080px) {
       .metrics { grid-template-columns: repeat(3, minmax(130px, 1fr)); }
+      .runtime-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .cluster-strip { grid-template-columns: repeat(2, minmax(210px, 1fr)); }
       .dashboard-layout { grid-template-columns: 1fr; }
       .rail { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2507,6 +2561,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       .feed-grid { grid-template-columns: 1fr; }
       .command, .feed-head { padding: 12px; }
       .metric { min-height: 84px; }
+      .runtime-grid { grid-template-columns: 1fr; }
       .alerts-grid { grid-template-columns: 1fr; }
     }
   </style>
@@ -2578,6 +2633,13 @@ DASHBOARD_HTML = r"""<!doctype html>
         </section>
 
         <section class="metrics" id="stats"></section>
+        <section class="runtime-panel" id="runtimePanel">
+          <div class="runtime-head">
+            <h2>运行状态</h2>
+            <span class="meta" id="runtimeUpdated">等待状态</span>
+          </div>
+          <div class="runtime-grid" id="runtimeGrid"></div>
+        </section>
         <section class="progress-panel" id="progressPanel">
           <div class="progress-head">
             <span class="progress-message" id="progressMessage">等待重跑</span>
@@ -2799,6 +2861,68 @@ DASHBOARD_HTML = r"""<!doctype html>
       renderReadTabs(data.read_status_counts || []);
       renderCategories(data.category_counts || []);
       renderHealth(data.source_health || []);
+    }
+
+    async function loadRuntimeStatus() {
+      const data = await api("/api/runtime-status");
+      renderRuntimeStatus(data);
+    }
+
+    function renderRuntimeStatus(data) {
+      const lastRun = data.last_run || {};
+      const sourceRows = lastRun.source_health || [];
+      const failedSources = sourceRows.filter((row) => row.status !== "ok");
+      const sourceText = sourceRows.length
+        ? `${sourceRows.length - failedSources.length}/${sourceRows.length} 正常`
+        : "暂无来源记录";
+      const cards = [
+        ["仪表盘", processLabel(data.dashboard?.status), processClass(data.dashboard?.status)],
+        ["调度器", processLabel(data.scheduler?.status), processClass(data.scheduler?.status)],
+        ["上次运行", lastRunLabel(lastRun), lastRun.status === "error" ? "runtime-error" : processClass(lastRun.status)],
+        ["下次运行", formatDateTime(data.next_run_at), "runtime-ok"],
+        ["来源", sourceText, failedSources.length ? "runtime-error" : "runtime-ok"]
+      ];
+      $("runtimeGrid").innerHTML = cards.map(([label, value, className]) => `
+        <div class="runtime-card">
+          <b>${esc(label)}</b>
+          <span class="${esc(className)}" title="${esc(value)}">${esc(value)}</span>
+        </div>
+      `).join("");
+      $("runtimeUpdated").textContent = `时区：${data.timezone || ""}`;
+    }
+
+    function processLabel(status) {
+      return {
+        running: "运行中",
+        stopped: "已停止",
+        not_tracked: "未追踪",
+        invalid: "PID 无效",
+        listening: "监听中",
+        unreachable: "未监听",
+        ok: "正常",
+        error: "异常",
+        not_initialized: "未初始化"
+      }[status] || "未知";
+    }
+
+    function processClass(status) {
+      if (["running", "listening", "ok"].includes(status)) return "runtime-ok";
+      if (["not_tracked", "not_initialized"].includes(status)) return "runtime-warn";
+      return "runtime-error";
+    }
+
+    function lastRunLabel(lastRun) {
+      if (!lastRun || !lastRun.status || lastRun.status === "not_initialized") return "暂无运行";
+      const when = formatDateTime(lastRun.created_at);
+      if (lastRun.status === "error") return `${lastRun.report_date || ""} 异常`;
+      return when || lastRun.report_date || "已运行";
+    }
+
+    function formatDateTime(value) {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value).replace("T", " ").slice(0, 16);
+      return date.toLocaleString("zh-CN", { hour12: false, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
     }
 
     function metric(label, value, delta, icon, tone) {
@@ -3343,7 +3467,7 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     async function refresh() {
       await loadDates();
-      await loadStats();
+      await Promise.all([loadStats(), loadRuntimeStatus()]);
       await Promise.all([loadClusters(), loadItems(), loadTrends(), loadWeekly(), loadAlerts()]);
     }
 
@@ -3441,6 +3565,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       showToast("已开始更新情报，后台正在抓取和整理。", true);
       await api("/api/run", { method: "POST" });
       await loadStats();
+      await loadRuntimeStatus();
       startRunPolling();
     });
     $("clusters").addEventListener("click", async (event) => {
