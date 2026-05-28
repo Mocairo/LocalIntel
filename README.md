@@ -8,6 +8,28 @@
 http://127.0.0.1:8765/
 ```
 
+## 安装依赖
+
+建议使用 Python 3.11 或更新版本。
+
+```powershell
+python -m pip install -e ".[dev]"
+```
+
+如果只运行程序、不执行测试，也可以直接使用 Python 标准库运行当前功能。
+
+## 初始化本地配置
+
+公开仓库只保留 `config.example.toml`。首次运行前复制为本地配置：
+
+```powershell
+Copy-Item .\config.example.toml .\config.toml
+Copy-Item .\.env.example .\.env
+notepad .\.env
+```
+
+`config.toml` 和 `.env` 都是本地文件，不应提交到仓库。
+
 ## 快速启动
 
 在 PowerShell 中进入项目目录：
@@ -172,6 +194,20 @@ python -m app.doctor --env .\.env
 ```
 
 如果看到 SSL/TLS handshake、timeout、connection failed 等错误，通常是当前网络访问这些 HTTPS API 不稳定。可以打开代理或 VPN，也可以在 `.env` 中配置 `HTTPS_PROXY` / `HTTP_PROXY`。
+
+## 本地诊断
+
+运行本地配置、目录、数据库和网络诊断：
+
+```powershell
+python -m app.doctor --config .\config.toml --env .\.env
+```
+
+只检查本地配置和数据库，不访问网络：
+
+```powershell
+python -m app.doctor --config .\config.toml --env .\.env --skip-network
+```
 
 ## 当前边界
 
