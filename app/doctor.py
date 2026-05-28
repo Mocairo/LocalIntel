@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import gc
 import importlib
+import os
 import sqlite3
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,7 +42,7 @@ def run_local_checks(config_path: Path, env_path: Path) -> list[CheckResult]:
         return results
 
     try:
-        settings = load_settings(config, env)
+        settings = load_settings(config, None)
         results.append(CheckResult("config", True, f"已读取配置: {config}"))
     except Exception as exc:
         results.append(CheckResult("config", False, f"配置读取失败: {exc}"))
@@ -67,16 +70,20 @@ def run_local_checks(config_path: Path, env_path: Path) -> list[CheckResult]:
         results.append(CheckResult("directories", False, f"目录检查失败: {exc}"))
         return results
 
-    db_path = settings.app_path("data_dir") / "doctor.sqlite"
+    db_path = settings.app_path("data_dir") / f"doctor-{os.getpid()}-{uuid.uuid4().hex}.sqlite"
     try:
         init_db(db_path)
-        with sqlite3.connect(db_path) as conn:
+        conn = sqlite3.connect(db_path)
+        try:
             conn.execute("SELECT 1").fetchone()
+        finally:
+            conn.close()
         results.append(CheckResult("sqlite", True, f"SQLite 可用: {db_path}"))
     except Exception as exc:
         results.append(CheckResult("sqlite", False, f"SQLite 检查失败: {exc}"))
     finally:
-        for path in (db_path, db_path.with_suffix(".sqlite-wal"), db_path.with_suffix(".sqlite-shm")):
+        gc.collect()
+        for path in (db_path, Path(str(db_path) + "-wal"), Path(str(db_path) + "-shm")):
             try:
                 path.unlink()
             except FileNotFoundError:
