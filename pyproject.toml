@@ -10,6 +10,9 @@ dev = [
   "pytest>=8.0",
 ]
 
+[tool.setuptools]
+packages = ["app"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
