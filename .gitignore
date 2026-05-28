@@ -5,6 +5,7 @@ reports/
 logs/
 __pycache__/
 *.pyc
+*.egg-info/
 .pytest_cache/
 .venv/
 .worktrees/
