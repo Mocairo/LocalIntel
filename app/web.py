@@ -2868,6 +2868,20 @@ DASHBOARD_HTML = r"""<!doctype html>
       renderRuntimeStatus(data);
     }
 
+    async function safeLoadRuntimeStatus() {
+      try {
+        await loadRuntimeStatus();
+      } catch (error) {
+        $("runtimeUpdated").textContent = "运行状态暂不可用";
+        $("runtimeGrid").innerHTML = `
+          <div class="runtime-card">
+            <b>运行状态</b>
+            <span class="runtime-warn" title="暂不可用">暂不可用</span>
+          </div>
+        `;
+      }
+    }
+
     function renderRuntimeStatus(data) {
       const lastRun = data.last_run || {};
       const sourceRows = lastRun.source_health || [];
@@ -3467,7 +3481,8 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     async function refresh() {
       await loadDates();
-      await Promise.all([loadStats(), loadRuntimeStatus()]);
+      await loadStats();
+      await safeLoadRuntimeStatus();
       await Promise.all([loadClusters(), loadItems(), loadTrends(), loadWeekly(), loadAlerts()]);
     }
 
@@ -3565,7 +3580,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       showToast("已开始更新情报，后台正在抓取和整理。", true);
       await api("/api/run", { method: "POST" });
       await loadStats();
-      await loadRuntimeStatus();
+      await safeLoadRuntimeStatus();
       startRunPolling();
     });
     $("clusters").addEventListener("click", async (event) => {
