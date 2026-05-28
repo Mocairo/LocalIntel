@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from app.config import Settings
 from app.db import init_db
-from app.status import build_runtime_status, parse_errors, pid_status, read_latest_run
+from app.status import build_runtime_status, default_pid_checker, parse_errors, pid_status, read_latest_run
 
 
 def settings_for(tmp_path: Path) -> Settings:
@@ -40,6 +40,19 @@ def test_pid_status_reports_running_for_live_pid_file(tmp_path: Path) -> None:
     result = pid_status(pid_file, lambda pid: pid == 1234)
 
     assert result == {"status": "running", "pid": 1234}
+
+
+def test_default_pid_checker_uses_windows_probe_without_os_kill(monkeypatch) -> None:
+    import app.status as status_module
+
+    def fail_kill(pid: int, sig: int) -> None:
+        raise AssertionError("os.kill must not be used for Windows PID checks")
+
+    monkeypatch.setattr(status_module.os, "name", "nt", raising=False)
+    monkeypatch.setattr(status_module.os, "kill", fail_kill)
+    monkeypatch.setattr(status_module, "_windows_pid_exists", lambda pid: pid == 1234, raising=False)
+
+    assert default_pid_checker(1234) is True
 
 
 def test_read_latest_run_reports_missing_database(tmp_path: Path) -> None:
@@ -109,3 +122,21 @@ def test_build_runtime_status_returns_process_and_schedule_summary(tmp_path: Pat
     assert result["web"]["status"] == "listening"
     assert result["last_run"]["status"] == "not_initialized"
     assert result["next_run_at"] == "2026-05-28T08:30:00+08:00"
+
+
+def test_build_runtime_status_reports_database_error_for_unreadable_sqlite(tmp_path: Path) -> None:
+    settings = settings_for(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "intel.sqlite").write_text("not sqlite", encoding="utf-8")
+    now = datetime(2026, 5, 28, 7, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
+
+    result = build_runtime_status(
+        settings,
+        now=now,
+        pid_checker=lambda pid: False,
+        port_checker=lambda host, port: False,
+    )
+
+    assert result["last_run"]["status"] == "error"
+    assert result["database"]["status"] == "error"

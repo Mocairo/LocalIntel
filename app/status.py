@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import json
 import os
 import socket
@@ -20,6 +21,8 @@ PortChecker = Callable[[str, int], bool]
 def default_pid_checker(pid: int) -> bool:
     if pid <= 0:
         return False
+    if os.name == "nt":
+        return _windows_pid_exists(pid)
     try:
         os.kill(pid, 0)
     except PermissionError:
@@ -27,6 +30,22 @@ def default_pid_checker(pid: int) -> bool:
     except OSError:
         return False
     return True
+
+
+def _windows_pid_exists(pid: int) -> bool:
+    process_query_limited_information = 0x1000
+    still_active = 259
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
+    if not handle:
+        return False
+    try:
+        exit_code = ctypes.c_ulong()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            return False
+        return exit_code.value == still_active
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def default_port_checker(host: str, port: int) -> bool:
@@ -121,6 +140,12 @@ def build_runtime_status(
     host = str(web.get("host", "127.0.0.1"))
     port = int(web.get("port", 8765))
     last_run = read_latest_run(db_path)
+    if not db_path.exists():
+        database_status = "not_initialized"
+    elif last_run.get("status") == "error":
+        database_status = "error"
+    else:
+        database_status = "ok"
 
     return {
         "dashboard": pid_status(data_dir / "web.pid", pid_checker),
@@ -130,7 +155,7 @@ def build_runtime_status(
             "host": host,
             "port": port,
         },
-        "database": {"status": "ok" if db_path.exists() else "not_initialized", "path": str(db_path)},
+        "database": {"status": database_status, "path": str(db_path)},
         "last_run": last_run,
         "next_run_at": next_run_at(current, daily_time).isoformat(timespec="seconds"),
         "timezone": timezone_name,
