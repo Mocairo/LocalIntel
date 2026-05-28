@@ -97,23 +97,7 @@ notepad .\.env
 `config.toml` 和 `.env` 都是本地文件，不应提交到仓库。
 ````
 
-在 README 的联网自检部分补充：
-
-````markdown
-## 本地诊断
-
-运行本地配置、目录、数据库和网络诊断：
-
-```powershell
-python -m app.doctor --config .\config.toml --env .\.env
-```
-
-只检查本地配置和数据库，不访问网络：
-
-```powershell
-python -m app.doctor --config .\config.toml --env .\.env --skip-network
-```
-````
+不要在本任务中写 `python -m app.doctor --config ...` 或 `--skip-network` 文档，因为这些参数要到 Task 4 才会实现。本地诊断说明放到 Task 6 收尾时再补。
 
 - [ ] **Step 4: 运行状态检查**
 
@@ -1207,7 +1191,27 @@ python -m pytest
 默认测试不会访问真实网络，也不会依赖本地 `data/intel.sqlite`。
 ````
 
-- [ ] **Step 2: 补充运行状态说明**
+- [ ] **Step 2: 补充本地诊断说明**
+
+在 README 的联网自检部分补充：
+
+````markdown
+## 本地诊断
+
+运行本地配置、目录、数据库和网络诊断：
+
+```powershell
+python -m app.doctor --config .\config.toml --env .\.env
+```
+
+只检查本地配置和数据库，不访问网络：
+
+```powershell
+python -m app.doctor --config .\config.toml --env .\.env --skip-network
+```
+````
+
+- [ ] **Step 3: 补充运行状态说明**
 
 在 README 的网页仪表盘能力列表中加入：
 
@@ -1215,7 +1219,7 @@ python -m pytest
 - 运行状态：仪表盘、调度器、上次运行、下次运行和来源健康摘要
 ```
 
-- [ ] **Step 3: 运行完整测试**
+- [ ] **Step 4: 运行完整测试**
 
 Run:
 
@@ -1225,7 +1229,7 @@ python -m pytest -v
 
 Expected: PASS。
 
-- [ ] **Step 4: 运行本地诊断**
+- [ ] **Step 5: 运行本地诊断**
 
 Run:
 
@@ -1235,7 +1239,7 @@ python -m app.doctor --config .\config.toml --env .\.env --skip-network
 
 Expected: critical 检查全部 OK，退出码为 0。
 
-- [ ] **Step 5: 检查 Git 状态**
+- [ ] **Step 6: 检查 Git 状态**
 
 Run:
 
@@ -1245,7 +1249,7 @@ git status --short
 
 Expected: 只显示 README 修改；`config.toml` 不应再次作为未跟踪文件出现，因为 `.gitignore` 已忽略它。
 
-- [ ] **Step 6: 提交**
+- [ ] **Step 7: 提交**
 
 ```powershell
 git add README.md
