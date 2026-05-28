@@ -1,146 +1,170 @@
-# Reliability Foundation Design
+# 可靠性地基设计
 
-Date: 2026-05-28
-Project: Local Intel / 知微情报中枢
+日期：2026-05-28
+项目：Local Intel / 知微情报中枢
 
-## Purpose
+## 目标
 
-Local Intel is now a GitHub-hosted personal intelligence workbench, not just a local scraping script. The next phase should make daily operation reliable before adding more sources or larger product features.
+Local Intel 现在已经上传到 GitHub，定位也不再只是一个本地抓取脚本，而是一个个人情报工作台。下一阶段先补工程地基和运行可靠性，再继续增加信息源或更复杂的产品功能。
 
-This design covers the first improvement phase: engineering baseline, configuration hygiene, scheduler visibility, and diagnostic workflow.
+本设计覆盖第一阶段改进：工程基线、配置卫生、调度器可见性、诊断流程。
 
-## Assumptions
+## 前提假设
 
-- The primary user is a single local Windows user running the dashboard on `127.0.0.1`.
-- The app should remain lightweight and standard-library-first unless a dependency clearly pays for itself.
-- Existing behavior should remain compatible with the current PowerShell scripts and `python -m app.*` commands.
-- `config.example.toml` is the distributable example config. Local personal config should not be treated as shared project state long term.
-- This phase should not redesign the dashboard UI or add new content sources.
+- 主要使用者是单个本地 Windows 用户。
+- 仪表盘默认运行在 `127.0.0.1`。
+- 项目继续保持轻量，优先使用 Python 标准库；只有收益明确时才新增依赖。
+- 现有 PowerShell 脚本和 `python -m app.*` 命令需要继续兼容。
+- `config.example.toml` 是公开仓库里的示例配置。
+- 本地个人配置不应长期作为共享项目状态提交到仓库。
+- 本阶段不重做仪表盘 UI，也不增加新的内容来源。
 
-## Goals
+## 要解决的问题
 
-- Make it clear whether the dashboard and scheduler are running.
-- Make it clear when the last successful pipeline run happened and when the next run is expected.
-- Provide a single local diagnostic command/API that identifies common setup and network failures.
-- Add a minimal automated test baseline for ranking, clustering, configuration, and scheduler timing logic.
-- Reduce risk from committed local configuration and missing dependency/test instructions.
+- 用户需要明确知道仪表盘和每日调度器是否真的在运行。
+- 用户需要明确知道上次成功抓取是什么时间、下次预计什么时候运行。
+- 用户需要一个本地诊断入口，用来定位常见配置、目录、数据库和网络问题。
+- 项目需要最小自动化测试基线，避免后续改排序、聚类、配置时引入回归。
+- 项目需要明确依赖、测试和运行说明，方便从 GitHub 重新克隆后快速恢复环境。
 
-## Non-Goals
+## 不做的事情
 
-- No account system, cloud deployment, multi-user permissions, or remote sync.
-- No new RSS/GitHub/arXiv/GDELT sources.
-- No major frontend redesign.
-- No large refactor of `app/web.py` in this phase, beyond small API/UI additions needed for status visibility.
+- 不做账号系统、云部署、多用户权限或远程同步。
+- 不增加新的 RSS、GitHub、arXiv、GDELT 信息源。
+- 不大改前端视觉设计。
+- 不在本阶段整体拆分 `app/web.py`。只做状态能力必须的小范围 API 和页面展示改动。
 
-## Proposed Approach
+## 推荐方案
 
-Use a narrow reliability layer over the existing architecture:
+在现有架构上增加一层窄范围可靠性能力：
 
-1. Add project metadata and test baseline.
-2. Introduce structured runtime status derived from existing PID files, report runs, source health, and scheduler timing.
-3. Expose that status through a small API and display it in the current dashboard.
-4. Improve docs and config hygiene so fresh clones can install, test, run, and configure the project predictably.
+1. 增加项目元数据和测试基线。
+2. 基于现有 PID 文件、数据库运行记录、来源健康记录和调度时间，生成结构化运行状态。
+3. 通过一个小 API 暴露运行状态，并在当前仪表盘中展示。
+4. 改进文档和配置处理，让新克隆项目可以明确安装、测试、运行和配置。
 
-This is preferred over starting with UI polish or personalization because reliability failures make all later product improvements harder to trust.
+这个方案优先于“先做 UI 美化”或“先做个性化推荐”，原因是：如果用户不能确认系统是否按时运行，后续所有产品能力都不可信。
 
-## Architecture
+## 架构设计
 
-### Project Baseline
+### 1. 工程基线
 
-Add a lightweight `pyproject.toml` with:
+新增轻量 `pyproject.toml`：
 
-- project name and Python version requirement
-- runtime dependencies only if current imports require them
-- pytest configuration
+- 声明项目名和 Python 版本要求。
+- 只声明当前运行确实需要的依赖。
+- 配置 `pytest`。
 
-Add focused tests under `tests/` for pure logic first:
+新增 `tests/` 目录，先覆盖纯逻辑：
 
 - `app.scheduler.next_run_at`
-- ranking and filtering behavior in `app.ranker`
-- clustering behavior in `app.clusters`
-- config read/write normalization in `app.config_store`
+- `app.ranker` 的排序和过滤逻辑
+- `app.clusters` 的聚类逻辑
+- `app.config_store` 的配置读写和归一化逻辑
 
-Network-dependent source fetches remain outside the default test suite.
+默认测试不访问真实网络，也不依赖现有本地 SQLite 数据库。
 
-### Runtime Status
+### 2. 运行状态模块
 
-Add a small status module, tentatively `app/status.py`, responsible for computing:
+新增一个小模块，暂定为 `app/status.py`，只负责读取状态，不负责启动或停止进程。
 
-- dashboard PID health
-- scheduler PID health
-- web port listen state, where available
-- last successful report date and timestamp
-- latest run errors
-- latest source health counts/errors
-- next scheduled run time from `daily_time` and timezone
+它需要计算：
 
-The module should use existing files and database tables. It should not start or stop processes.
+- 仪表盘 PID 是否存活。
+- 每日调度器 PID 是否存活。
+- Web 端口是否监听；如果当前平台不方便检测，则返回不可用状态。
+- 上次成功运行日期和时间。
+- 最近一次运行错误。
+- 最新来源健康状态和每个来源的抓取数量。
+- 根据 `daily_time` 和时区计算下一次预计运行时间。
 
-### Dashboard/API Integration
-
-Add `GET /api/runtime-status` to `app.web`.
-
-The dashboard should show a compact health panel:
-
-- Dashboard: running/stopped
-- Scheduler: running/stopped/untracked
-- Last run: date/time plus success/error state
-- Next run: local time
-- Sources: ok/error summary
-
-The existing source health and progress panels remain. This phase only makes the operational state explicit.
-
-### Diagnostics
-
-Extend `app.doctor` from network-only checks into a local diagnostic command:
-
-- validate Python can import the app
-- validate config and env files are readable
-- validate data/log/report directories can be created
-- validate SQLite can be initialized/opened
-- validate configured source endpoints are reachable, preserving current behavior
-- print actionable failures with a non-zero exit code when critical checks fail
-
-The dashboard may link to instructions for `python -m app.doctor --env .\.env`; it should not run diagnostics automatically on every page load.
-
-## Data Flow
-
-Runtime status reads from:
+状态来源使用现有文件和数据库表：
 
 - `data/web.pid`
 - `data/scheduler.pid`
 - `config.toml`
 - `report_runs`
 - `source_health`
-- existing app directory settings
+- 当前配置里的数据、日志、报告目录
 
-Pipeline execution continues to write `report_runs`, `source_health`, reports, and logs as it does today.
+### 3. 仪表盘和 API
 
-No schema migration is required for this phase unless tests reveal missing data needed for reliable status. If a migration becomes necessary, it must be additive.
+在 `app.web` 中新增：
 
-## Error Handling
+- `GET /api/runtime-status`
 
-- Missing PID file should be reported as `not_tracked`, not as an exception.
-- Stale PID should be reported as `stopped`.
-- Missing database should be reported as `not_initialized`.
-- Invalid config should surface a clear error in doctor and API status.
-- Source failures should be grouped by source and preserve existing error details.
-- Dashboard API errors should return JSON with an error field rather than an HTML error body where practical.
+仪表盘新增一个紧凑运行状态区，展示：
 
-## Config Hygiene
+- 仪表盘：运行中 / 已停止
+- 调度器：运行中 / 已停止 / 未追踪
+- 上次运行：日期、时间、成功或失败
+- 下次运行：本地时间
+- 来源状态：成功数量、失败数量和错误摘要
 
-Keep `config.example.toml` as the reference file.
+现有来源健康状态、进度条和报告列表继续保留。本阶段只让运行状态更明确，不重做页面结构。
 
-For `config.toml`, choose one of these during implementation:
+### 4. 本地诊断
 
-- If it is intended to be user-local, remove it from Git tracking and document copying from `config.example.toml`.
-- If it is intended as a checked-in default, keep it free of machine-specific values and ensure local overrides live elsewhere.
+扩展 `app.doctor`，从单纯网络自检升级为本地诊断命令。
 
-The recommended implementation is to stop tracking personal `config.toml` after preserving an example/default path, because user-specific local settings will diverge.
+诊断内容：
 
-## Testing
+- Python 能否导入项目模块。
+- 配置文件和 `.env` 文件是否可读。
+- 数据目录、日志目录、报告目录是否可创建。
+- SQLite 是否能初始化和打开。
+- 配置中的关键来源端点是否可访问，保留现有联网自检能力。
+- 失败时输出可操作的错误信息。
+- 如果关键检查失败，进程返回非零退出码。
 
-Default verification should be:
+仪表盘可以提示用户运行：
+
+```powershell
+python -m app.doctor --env .\.env
+```
+
+仪表盘不应在每次打开页面时自动运行完整诊断，避免页面加载变慢。
+
+## 数据流
+
+运行状态读取：
+
+- PID 文件
+- 配置文件
+- SQLite 里的运行记录和来源健康记录
+
+抓取流程继续写入：
+
+- `report_runs`
+- `source_health`
+- `reports/`
+- `logs/`
+
+本阶段默认不需要数据库迁移。如果实现时发现缺少必要字段，迁移必须是向后兼容的新增字段或新增表。
+
+## 错误处理
+
+- PID 文件不存在：返回 `not_tracked`，不抛异常。
+- PID 文件存在但进程不存在：返回 `stopped`。
+- 数据库不存在：返回 `not_initialized`。
+- 配置无效：在 doctor 和状态 API 中返回清晰错误。
+- 来源失败：按来源聚合，并保留现有错误细节。
+- Dashboard API 尽量返回 JSON 错误，不返回 HTML 错误页。
+
+## 配置处理
+
+保留 `config.example.toml` 作为仓库里的参考配置。
+
+`config.toml` 在实施时需要明确定位：
+
+- 如果它是用户本地配置，则从 Git 追踪中移除，并在 README 里说明从 `config.example.toml` 复制生成。
+- 如果它是仓库默认配置，则必须避免机器相关和个人偏好相关内容，本地覆盖放到其他文件。
+
+推荐实现：让 `config.toml` 成为本地文件，不再跟踪。原因是用户本地配置会随使用习惯、API、信息源和时间逐步分叉。
+
+## 测试策略
+
+默认验证命令：
 
 ```powershell
 python -m pytest
@@ -148,31 +172,35 @@ python -m app.doctor --env .\.env
 python -m app.web --config .\config.toml --env .\.env
 ```
 
-For automated tests, avoid real network calls and avoid depending on the existing local SQLite database.
+自动化测试要求：
 
-Expected test coverage for this phase:
+- 不访问真实网络。
+- 不依赖现有本地数据库。
+- 使用临时目录和临时 SQLite。
 
-- scheduler computes next run correctly before and after the configured daily time
-- ranking drops blocked keywords and handles preferred domains
-- clustering groups related non-GitHub items and keeps GitHub Trending as standalone
-- config updates preserve allowed keys and normalize numeric fields
-- runtime status handles missing/stale PID files and missing database
+本阶段预期测试覆盖：
 
-## Implementation Boundaries
+- 调度器能正确计算当天还未到运行时间、当天已过运行时间两种场景。
+- 排序器能过滤屏蔽关键词，并正确处理偏好域名。
+- 聚类能把相关的非 GitHub 条目聚在一起，并保持 GitHub Trending 条目独立。
+- 配置更新只允许白名单字段，并能归一化数字字段。
+- 运行状态能处理缺失 PID、失效 PID、缺失数据库。
 
-Keep changes surgical:
+## 实施边界
 
-- Add new modules where they reduce coupling.
-- Avoid splitting `app/web.py` wholesale in this phase.
-- Do not change ranking semantics except where tests document existing behavior.
-- Do not change report output format unless required by status visibility.
-- Do not modify generated `data/`, `logs/`, or `reports/` artifacts.
+改动要保持小而可审查：
 
-## Success Criteria
+- 需要降低耦合时新增小模块。
+- 本阶段不整体拆分 `app/web.py`。
+- 除非测试明确记录现有行为，否则不改变排序语义。
+- 除非运行状态展示必须，不改变报告输出格式。
+- 不修改生成目录 `data/`、`logs/`、`reports/` 中的产物。
 
-- A fresh clone has clear install/test/run instructions.
-- Running `python -m pytest` gives a useful baseline.
-- Running `python -m app.doctor --env .\.env` reports local setup and network health.
-- The dashboard shows scheduler and last-run status without requiring PowerShell status scripts.
-- The current start/stop/status PowerShell scripts continue to work.
-- The change set is small enough to review without mixing unrelated product features.
+## 成功标准
+
+- 新克隆项目后，有清晰的安装、测试、运行说明。
+- `python -m pytest` 能提供有用的基础测试结果。
+- `python -m app.doctor --env .\.env` 能报告本地设置和网络健康状态。
+- 仪表盘能显示调度器状态和上次运行状态，不必只依赖 PowerShell 状态脚本。
+- 现有 `start_local_intel.ps1`、`stop_local_intel.ps1`、`status_local_intel.ps1` 继续可用。
+- 改动范围聚焦，不混入无关产品功能。
