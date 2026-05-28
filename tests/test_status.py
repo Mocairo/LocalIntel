@@ -1,0 +1,106 @@
+from __future__ import annotations
+
+import json
+import sqlite3
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from app.config import Settings
+from app.db import init_db
+from app.status import build_runtime_status, pid_status, read_latest_run
+
+
+def settings_for(tmp_path: Path) -> Settings:
+    return Settings(
+        root=tmp_path,
+        values={
+            "app": {
+                "timezone": "Asia/Shanghai",
+                "daily_time": "08:30",
+                "data_dir": "data",
+                "report_dir": "reports",
+                "log_dir": "logs",
+            },
+            "web": {"host": "127.0.0.1", "port": 8765},
+        },
+    )
+
+
+def test_pid_status_reports_not_tracked_when_pid_file_missing(tmp_path: Path) -> None:
+    result = pid_status(tmp_path / "missing.pid", lambda pid: True)
+
+    assert result == {"status": "not_tracked", "pid": 0}
+
+
+def test_pid_status_reports_running_for_live_pid_file(tmp_path: Path) -> None:
+    pid_file = tmp_path / "web.pid"
+    pid_file.write_text("1234\n", encoding="utf-8")
+
+    result = pid_status(pid_file, lambda pid: pid == 1234)
+
+    assert result == {"status": "running", "pid": 1234}
+
+
+def test_read_latest_run_reports_missing_database(tmp_path: Path) -> None:
+    result = read_latest_run(tmp_path / "missing.sqlite")
+
+    assert result["status"] == "not_initialized"
+
+
+def test_read_latest_run_reads_latest_report_and_errors(tmp_path: Path) -> None:
+    db_path = tmp_path / "intel.sqlite"
+    init_db(db_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO report_runs
+                (report_date, raw_total, deduped_total, inserted, llm_summary, errors_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "2026-05-28",
+                10,
+                8,
+                8,
+                "",
+                json.dumps(["rss failed"], ensure_ascii=False),
+                "2026-05-28T01:00:00+00:00",
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO source_health
+                (report_date, source, status, count, duration_seconds, error, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("2026-05-28", "rss", "error", 0, 1.2, "timeout", "2026-05-28T01:00:00+00:00"),
+        )
+
+    result = read_latest_run(db_path)
+
+    assert result["status"] == "error"
+    assert result["report_date"] == "2026-05-28"
+    assert result["errors"] == ["rss failed"]
+    assert result["source_health"][0]["source"] == "rss"
+
+
+def test_build_runtime_status_returns_process_and_schedule_summary(tmp_path: Path) -> None:
+    settings = settings_for(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "web.pid").write_text("100\n", encoding="utf-8")
+    now = datetime(2026, 5, 28, 7, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
+
+    result = build_runtime_status(
+        settings,
+        now=now,
+        pid_checker=lambda pid: pid == 100,
+        port_checker=lambda host, port: port == 8765,
+    )
+
+    assert result["dashboard"]["status"] == "running"
+    assert result["scheduler"]["status"] == "not_tracked"
+    assert result["web"]["status"] == "listening"
+    assert result["last_run"]["status"] == "not_initialized"
+    assert result["next_run_at"] == "2026-05-28T08:30:00+08:00"
