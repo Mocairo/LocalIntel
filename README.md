@@ -172,6 +172,7 @@ OPENAI_BASE_URL=备用 OpenAI-compatible base_url
 - 收藏、忽略、稍后看、归档
 - 关注主题和异常趋势提醒
 - 来源健康状态、近期趋势、本周沉淀
+- 运行状态：仪表盘、调度器、上次运行、下次运行和来源健康摘要
 - 配置中心：来源、偏好、权重、翻译和 LLM 选项
 
 ## 常用脚本
@@ -185,12 +186,28 @@ uninstall_autostart.ps1     取消开机自动启动
 run_daily.ps1               给 Windows 任务计划使用的单次抓取脚本
 ```
 
-## 联网自检
+## 测试
 
-如果所有来源都抓取失败，先运行：
+运行默认测试：
 
 ```powershell
-python -m app.doctor --env .\.env
+python -m pytest
+```
+
+默认测试不会访问真实网络，也不会依赖本地 `data/intel.sqlite`。
+
+## 本地诊断
+
+运行本地配置、目录、SQLite 和网络诊断：
+
+```powershell
+python -m app.doctor --config .\config.toml --env .\.env
+```
+
+只检查本地配置、目录和 SQLite，不访问网络：
+
+```powershell
+python -m app.doctor --config .\config.toml --env .\.env --skip-network
 ```
 
 如果看到 SSL/TLS handshake、timeout、connection failed 等错误，通常是当前网络访问这些 HTTPS API 不稳定。可以打开代理或 VPN，也可以在 `.env` 中配置 `HTTPS_PROXY` / `HTTP_PROXY`。
