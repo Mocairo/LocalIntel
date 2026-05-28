@@ -4,6 +4,7 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 from app.config import Settings
@@ -53,6 +54,55 @@ def test_default_pid_checker_uses_windows_probe_without_os_kill(monkeypatch) -> 
     monkeypatch.setattr(status_module, "_windows_pid_exists", lambda pid: pid == 1234, raising=False)
 
     assert default_pid_checker(1234) is True
+
+
+def test_windows_pid_exists_declares_api_signatures_and_closes_handle(monkeypatch) -> None:
+    import app.status as status_module
+
+    closed_handles: list[int] = []
+
+    class FakeFunction:
+        def __init__(self, callback):
+            self.callback = callback
+            self.argtypes = None
+            self.restype = None
+
+        def __call__(self, *args):
+            return self.callback(*args)
+
+    def open_process(access, inherit, pid):
+        return 42
+
+    def get_exit_code_process(handle, exit_code_ptr):
+        exit_code_ptr._obj.value = 259
+        return True
+
+    def close_handle(handle):
+        closed_handles.append(handle)
+        return True
+
+    fake_kernel32 = SimpleNamespace(
+        OpenProcess=FakeFunction(open_process),
+        GetExitCodeProcess=FakeFunction(get_exit_code_process),
+        CloseHandle=FakeFunction(close_handle),
+    )
+    monkeypatch.setattr(status_module.ctypes, "windll", SimpleNamespace(kernel32=fake_kernel32), raising=False)
+
+    assert status_module._windows_pid_exists(1234) is True
+    assert fake_kernel32.OpenProcess.argtypes == [
+        status_module.wintypes.DWORD,
+        status_module.wintypes.BOOL,
+        status_module.wintypes.DWORD,
+    ]
+    assert fake_kernel32.OpenProcess.restype == status_module.wintypes.HANDLE
+    assert fake_kernel32.GetExitCodeProcess.argtypes == [
+        status_module.wintypes.HANDLE,
+        status_module.ctypes.POINTER(status_module.wintypes.DWORD),
+    ]
+    assert fake_kernel32.GetExitCodeProcess.restype == status_module.wintypes.BOOL
+    assert fake_kernel32.CloseHandle.argtypes == [status_module.wintypes.HANDLE]
+    assert fake_kernel32.CloseHandle.restype == status_module.wintypes.BOOL
+    assert closed_handles == [42]
 
 
 def test_read_latest_run_reports_missing_database(tmp_path: Path) -> None:
