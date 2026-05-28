@@ -98,7 +98,7 @@ def parse_errors(value: str) -> list[str]:
         return [value] if value else []
     if isinstance(parsed, list):
         return [str(row) for row in parsed if str(row)]
-    return [str(parsed)] if parsed else []
+    return [str(parsed)]
 
 
 def build_runtime_status(

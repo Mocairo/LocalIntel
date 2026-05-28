@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from app.config import Settings
 from app.db import init_db
-from app.status import build_runtime_status, pid_status, read_latest_run
+from app.status import build_runtime_status, parse_errors, pid_status, read_latest_run
 
 
 def settings_for(tmp_path: Path) -> Settings:
@@ -46,6 +46,11 @@ def test_read_latest_run_reports_missing_database(tmp_path: Path) -> None:
     result = read_latest_run(tmp_path / "missing.sqlite")
 
     assert result["status"] == "not_initialized"
+
+
+def test_parse_errors_preserves_falsy_non_list_json_values() -> None:
+    assert parse_errors("0") == ["0"]
+    assert parse_errors("false") == ["False"]
 
 
 def test_read_latest_run_reads_latest_report_and_errors(tmp_path: Path) -> None:
