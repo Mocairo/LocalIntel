@@ -816,6 +816,66 @@ DASHBOARD_HTML = r"""<!doctype html>
       border-radius: 999px;
       background: var(--teal);
     }
+    [data-views][hidden] {
+      display: none !important;
+    }
+    .view-nav {
+      display: grid;
+      gap: 8px;
+    }
+    .view-nav-btn {
+      width: 100%;
+      height: auto;
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr);
+      gap: 8px 10px;
+      align-items: center;
+      padding: 10px;
+      text-align: left;
+      white-space: normal;
+      background: #fbfcfb;
+      border-color: transparent;
+      box-shadow: none;
+    }
+    html[data-theme="night"] .view-nav-btn { background: #131c20; }
+    .view-nav-btn span[data-icon] {
+      grid-row: span 2;
+      width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: currentColor;
+    }
+    .view-nav-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .view-nav-btn b {
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.2;
+    }
+    .view-nav-btn small {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.2;
+    }
+    .view-nav-btn.active {
+      color: #fff;
+      border-color: var(--teal);
+      background: linear-gradient(135deg, var(--teal), #0c5f8f);
+      box-shadow: 0 10px 24px rgba(15, 118, 110, 0.16);
+    }
+    .view-nav-btn.active b,
+    .view-nav-btn.active small {
+      color: #fff;
+    }
     .category-list {
       display: grid;
       gap: 7px;
@@ -2676,6 +2736,15 @@ DASHBOARD_HTML = r"""<!doctype html>
       display: inline-block;
       margin-top: 6px;
     }
+    .sources-panel {
+      display: grid;
+      gap: 12px;
+    }
+    .sources-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
     .alert-card {
       min-height: 96px;
       padding: 12px;
@@ -2840,6 +2909,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       .metrics { grid-template-columns: repeat(3, minmax(130px, 1fr)); }
       .runtime-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .cluster-strip { grid-template-columns: repeat(2, minmax(210px, 1fr)); }
+      .sources-grid { grid-template-columns: 1fr; }
       .dashboard-layout { grid-template-columns: 1fr; }
       .rail { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .alerts-grid, .drawer-judgement { grid-template-columns: 1fr; }
@@ -2902,26 +2972,35 @@ DASHBOARD_HTML = r"""<!doctype html>
   <main class="app-shell">
     <div class="dashboard-layout">
       <aside class="rail">
-        <section class="rail-section rail-category">
+        <section class="rail-section rail-nav">
+          <h2>导航</h2>
+          <div class="view-nav" id="viewNav">
+            <button class="view-nav-btn active" data-view-nav="overview" type="button"><span data-icon="grid"></span><b>概览</b><small>总体、摘要、提醒</small></button>
+            <button class="view-nav-btn" data-view-nav="today" type="button"><span data-icon="doc"></span><b>今日情报</b><small>筛选、主线、列表</small></button>
+            <button class="view-nav-btn" data-view-nav="watch" type="button"><span data-icon="target"></span><b>观察雷达</b><small>对象走势和详情</small></button>
+            <button class="view-nav-btn" data-view-nav="sources" type="button"><span data-icon="sparkles"></span><b>来源状态</b><small>来源、趋势、周报</small></button>
+          </div>
+        </section>
+        <section class="rail-section rail-category" data-views="today">
           <h2>分类</h2>
           <div class="category-list" id="categoryButtons"></div>
         </section>
-        <section class="rail-section rail-health">
+        <section class="rail-section rail-health" data-views="rail-extra">
           <h2>来源状态</h2>
           <div class="health" id="health"></div>
         </section>
-        <section class="rail-section rail-trend">
+        <section class="rail-section rail-trend" data-views="rail-extra">
           <h2>近期趋势</h2>
           <div class="trend" id="trend"></div>
         </section>
-        <section class="rail-section rail-weekly">
+        <section class="rail-section rail-weekly" data-views="rail-extra">
           <h2>本周沉淀</h2>
           <div class="weekly" id="weekly"></div>
         </section>
       </aside>
 
       <section class="main-area">
-        <section class="command">
+        <section class="command" data-views="today">
           <select id="dateSelect"></select>
           <select id="categorySelect">
             <option value="">全部分类</option>
@@ -2936,8 +3015,8 @@ DASHBOARD_HTML = r"""<!doctype html>
           <button id="clearBtn">清空</button>
         </section>
 
-        <section class="metrics" id="stats"></section>
-        <section class="runtime-panel" id="runtimePanel">
+        <section class="metrics" id="stats" data-views="overview"></section>
+        <section class="runtime-panel" id="runtimePanel" data-views="overview">
           <div class="runtime-head">
             <h2>运行状态</h2>
             <span class="meta" id="runtimeUpdated">等待状态</span>
@@ -2952,7 +3031,7 @@ DASHBOARD_HTML = r"""<!doctype html>
           <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
           <div class="source-progress" id="sourceProgress"></div>
         </section>
-        <section class="llm-panel" id="llmPanel">
+        <section class="llm-panel" id="llmPanel" data-views="overview">
           <div class="llm-head">
             <h2>LLM 摘要</h2>
             <span id="llmTime"></span>
@@ -2960,7 +3039,7 @@ DASHBOARD_HTML = r"""<!doctype html>
           <pre id="llmSummary"></pre>
           <div class="sparkline" aria-hidden="true"></div>
         </section>
-        <section class="alerts-panel" id="alertsPanel">
+        <section class="alerts-panel" id="alertsPanel" data-views="overview">
           <div class="alerts-head">
             <h2>高价值信号</h2>
             <span id="alertsNote">规则筛选，模型判断</span>
@@ -2968,7 +3047,7 @@ DASHBOARD_HTML = r"""<!doctype html>
           <div class="alerts-grid" id="alerts"></div>
         </section>
 
-        <section class="watch-panel" id="watchPanel">
+        <section class="watch-panel" id="watchPanel" data-views="watch">
           <div class="watch-head">
             <h2>观察雷达</h2>
             <span id="watchNote">长期关注对象的动态</span>
@@ -2977,7 +3056,28 @@ DASHBOARD_HTML = r"""<!doctype html>
           <div class="watch-history" id="watchHistory"></div>
         </section>
 
-        <section class="mainline-block">
+        <section class="sources-panel" data-views="sources">
+          <div class="section-head">
+            <h2>来源状态</h2>
+            <div class="section-note">抓取健康、近期趋势和本周沉淀</div>
+          </div>
+          <div class="sources-grid">
+            <section class="rail-section">
+              <h2>来源健康</h2>
+              <div class="health" id="sourcesHealth"></div>
+            </section>
+            <section class="rail-section">
+              <h2>近期趋势</h2>
+              <div class="trend" id="sourcesTrend"></div>
+            </section>
+            <section class="rail-section">
+              <h2>本周沉淀</h2>
+              <div class="weekly" id="sourcesWeekly"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="mainline-block" data-views="today">
           <div class="section-head">
             <h2>今日主线</h2>
             <div class="section-note" id="clusterNote">按相似主题聚合</div>
@@ -2985,7 +3085,7 @@ DASHBOARD_HTML = r"""<!doctype html>
           <div class="cluster-strip" id="clusters"></div>
         </section>
 
-        <section class="feed-panel">
+        <section class="feed-panel" data-views="today">
           <div class="feed-head">
             <h2 id="listTitle">重点排序</h2>
             <div class="feed-actions">
@@ -3085,6 +3185,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       favorite: false,
       includeIgnored: false,
       theme: "focus",
+      view: "overview",
       viewMode: "grid",
       configLoaded: false,
       pollTimer: null,
@@ -3429,12 +3530,14 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
 
     function renderHealth(rows) {
-      $("health").innerHTML = rows.length ? rows.map((row) => `
+      const html = rows.length ? rows.map((row) => `
         <div class="health-row">
           <span class="health-source"><i></i><span><b>${esc(sourceName(row.source))}</b><small class="${row.status === "ok" ? "health-ok" : "health-error"}">${esc(row.status)}</small></span></span>
           <span class="health-count">${esc(row.count)}</span>
         </div>
       `).join("") : "<div class='empty'>暂无状态</div>";
+      $("health").innerHTML = html;
+      $("sourcesHealth").innerHTML = html;
     }
 
     function renderWatchRadar(data) {
@@ -3528,7 +3631,9 @@ DASHBOARD_HTML = r"""<!doctype html>
       const data = await api("/api/trends");
       const rows = data.trends || [];
       if (!rows.length) {
-        $("trend").innerHTML = "<div class='empty'>暂无趋势</div>";
+        const empty = "<div class='empty'>暂无趋势</div>";
+        $("trend").innerHTML = empty;
+        $("sourcesTrend").innerHTML = empty;
         return;
       }
       const latest = rows[rows.length - 1] || {};
@@ -3536,7 +3641,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       const total = Number(latest.deduped_total || 0);
       const delta = total - Number(previous.deduped_total || total);
       const points = sparklinePoints(rows.map((row) => Number(row.deduped_total || 0)), 216, 72);
-      $("trend").innerHTML = `
+      const html = `
         <div class="trend-card">
           <div class="trend-top">
             <div><b>${esc(total)}</b><small>较昨日 ${delta >= 0 ? "+" : ""}${esc(delta)}</small></div>
@@ -3550,6 +3655,8 @@ DASHBOARD_HTML = r"""<!doctype html>
           <div class="trend-scale"><span>${esc(rows[0]?.report_date?.slice(5) || "")}</span><span>${esc(latest.report_date?.slice(5) || "")}</span></div>
         </div>
       `;
+      $("trend").innerHTML = html;
+      $("sourcesTrend").innerHTML = html;
     }
 
     function sparklinePoints(values, width, height) {
@@ -3574,13 +3681,15 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     function renderWeekly(weekly) {
       if (!weekly.week_id) {
-        $("weekly").innerHTML = "<div class='empty'>暂无周报</div>";
+        const empty = "<div class='empty'>暂无周报</div>";
+        $("weekly").innerHTML = empty;
+        $("sourcesWeekly").innerHTML = empty;
         return;
       }
       const tags = (weekly.top_tags || []).slice(0, 6).map((row) => `<span>${esc(row.tag)} · ${esc(row.count)}</span>`).join("");
       const must = findCount(weekly.bucket_counts || [], "must");
       const unread = findCount(weekly.read_status_counts || [], "unread");
-      $("weekly").innerHTML = `
+      const html = `
         <article class="weekly-card">
           <div class="weekly-head">
             <a href="${esc(weekly.html_url || "#")}" target="_blank" rel="noreferrer">${esc(weekly.week_id)} 周报</a>
@@ -3595,6 +3704,8 @@ DASHBOARD_HTML = r"""<!doctype html>
           <div class="weekly-tags">${tags || "<span>暂无热词</span>"}</div>
         </article>
       `;
+      $("weekly").innerHTML = html;
+      $("sourcesWeekly").innerHTML = html;
     }
 
     function findCount(rows, key) {
@@ -4026,6 +4137,35 @@ DASHBOARD_HTML = r"""<!doctype html>
       });
     }
 
+    function loadDashboardView() {
+      let saved = "overview";
+      try {
+        saved = localStorage.getItem("localIntelView") || "overview";
+      } catch {
+        saved = "overview";
+      }
+      setView(saved, false);
+    }
+
+    function setView(view, persist = true) {
+      const next = ["overview", "today", "watch", "sources"].includes(view) ? view : "overview";
+      state.view = next;
+      document.querySelectorAll("[data-view-nav]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.viewNav === next);
+      });
+      document.querySelectorAll("[data-views]").forEach((node) => {
+        const views = String(node.dataset.views || "").split(/\s+/).filter(Boolean);
+        node.hidden = !views.includes(next);
+      });
+      if (persist) {
+        try {
+          localStorage.setItem("localIntelView", next);
+        } catch {
+          // localStorage can be unavailable in restricted browser contexts.
+        }
+      }
+    }
+
     async function refresh() {
       await loadDates();
       await loadStats();
@@ -4081,11 +4221,13 @@ DASHBOARD_HTML = r"""<!doctype html>
       await loadItems();
     });
     $("favoritesBtn").addEventListener("click", async () => {
+      setView("today");
       state.favorite = !state.favorite;
       $("favoritesBtn").classList.toggle("active", state.favorite);
       await loadItems();
     });
     $("ignoredBtn").addEventListener("click", async () => {
+      setView("today");
       state.includeIgnored = !state.includeIgnored;
       $("ignoredBtn").classList.toggle("active", state.includeIgnored);
       await loadItems();
@@ -4123,6 +4265,10 @@ DASHBOARD_HTML = r"""<!doctype html>
       $("refreshBtn").disabled = false;
       $("refreshBtn").textContent = "刷新本地数据";
       showToast("已刷新本地数据。要重新抓取互联网，请点右上角“更新情报”。");
+    });
+    $("viewNav").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-view-nav]");
+      if (button) setView(button.dataset.viewNav || "overview");
     });
     $("runBtn").addEventListener("click", async () => {
       showToast("已开始更新情报，后台正在抓取和整理。", true);
@@ -4184,6 +4330,7 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     hydrateIcons();
     loadTheme();
+    loadDashboardView();
     refresh().catch((error) => {
       $("subtitle").textContent = error.message;
     });
