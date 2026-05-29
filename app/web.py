@@ -28,10 +28,12 @@ from app.weekly import build_weekly_report
 
 
 class AppState:
-    def __init__(self, config_path: Path, env_path: Path, settings: Settings) -> None:
+    def __init__(self, config_path: Path, env_path: Path, settings: Settings, web_host: str, web_port: int) -> None:
         self.config_path = config_path
         self.env_path = env_path
         self.settings = settings
+        self.web_host = web_host
+        self.web_port = web_port
         self.db_path = settings.app_path("data_dir") / "intel.sqlite"
         self.running = False
         self.last_result: dict[str, object] = {}
@@ -77,7 +79,9 @@ class LocalIntelHandler(BaseHTTPRequestHandler):
             self.send_json({"clusters": clusters})
             return
         if parsed.path == "/api/runtime-status":
-            self.send_json(build_runtime_status(self.state.settings))
+            self.send_json(
+                build_runtime_status(self.state.settings, web_host=self.state.web_host, web_port=self.state.web_port)
+            )
             return
         if parsed.path == "/api/item":
             params = parse_qs(parsed.query)
@@ -270,7 +274,7 @@ def main() -> None:
     host = args.host or str(web.get("host", "127.0.0.1"))
     port = args.port or int(web.get("port", 8765))
 
-    LocalIntelHandler.state = AppState(config_path, env_path, settings)
+    LocalIntelHandler.state = AppState(config_path, env_path, settings, host, port)
     server = ThreadingHTTPServer((host, port), LocalIntelHandler)
     print(f"Local Intel dashboard: http://{host}:{port}/")
     try:
@@ -2836,15 +2840,32 @@ DASHBOARD_HTML = r"""<!doctype html>
       const dates = data.dates || [];
       state.date = state.date || data.latest || dates[0] || "";
       $("dateSelect").innerHTML = dates.map((date) => `<option value="${esc(date)}">${esc(date)}</option>`).join("");
-      $("dateSelect").value = state.date;
+      syncDateSelect(state.date);
+    }
+
+    function syncDateSelect(date) {
+      if (!date) return;
+      const select = $("dateSelect");
+      if (![...select.options].some((option) => option.value === date)) {
+        const option = document.createElement("option");
+        option.value = date;
+        option.textContent = date;
+        select.prepend(option);
+      }
+      select.value = date;
     }
 
     async function loadStats() {
       const params = new URLSearchParams({ date: state.date });
       const data = await api(`/api/stats?${params}`);
       state.stats = data;
+      if (!state.date && data.report_date) {
+        state.date = data.report_date;
+        syncDateSelect(state.date);
+      }
       const run = data.run || {};
-      $("subtitle").textContent = state.date ? `${state.date} · 北京时间 ${formatBeijingClock(run.created_at || "")}` : "暂无日报";
+      const reportDate = state.date || data.report_date || "";
+      $("subtitle").textContent = reportDate ? `${reportDate} · 北京时间 ${formatBeijingClock(run.created_at || "")}` : "暂无日报";
       $("llmTime").textContent = run.created_at ? `生成时间：${formatShortBeijingTime(run.created_at)}` : "";
       $("runBtn").innerHTML = `<span data-icon="refresh">${iconSvg("refresh")}</span>${data.running ? "更新中" : "更新情报"}`;
       $("runBtn").disabled = !!data.running;
@@ -2889,8 +2910,9 @@ DASHBOARD_HTML = r"""<!doctype html>
       const sourceText = sourceRows.length
         ? `${sourceRows.length - failedSources.length}/${sourceRows.length} 正常`
         : "暂无来源记录";
+      const dashboardStatus = data.web?.status || data.dashboard?.status;
       const cards = [
-        ["仪表盘", processLabel(data.dashboard?.status), processClass(data.dashboard?.status)],
+        ["仪表盘", processLabel(dashboardStatus), processClass(dashboardStatus)],
         ["调度器", processLabel(data.scheduler?.status), processClass(data.scheduler?.status)],
         ["上次运行", lastRunLabel(lastRun), lastRun.status === "error" ? "runtime-error" : processClass(lastRun.status)],
         ["下次运行", formatDateTime(data.next_run_at), "runtime-ok"],
@@ -2972,11 +2994,15 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
 
     function cleanLlmSummary(summary) {
-      return String(summary || "")
+      const lines = String(summary || "")
         .split(/\r?\n/)
-        .filter((line) => !/^LLM\s*(模型|model)\s*[:：]/i.test(line.trim()))
-        .join("\n")
-        .trim();
+        .filter((line) => !/^LLM\s*(模型|model)\s*[:：]/i.test(line.trim()));
+      if (/^LLM\s*(failed|skipped)/i.test((lines[0] || "").trim())) {
+        const fallbackIndex = lines.findIndex((line) => line.trim().startsWith("本地规则"));
+        if (fallbackIndex >= 0) return lines.slice(fallbackIndex).join("\n").trim();
+        return "LLM 暂不可用，已使用本地规则摘要。";
+      }
+      return lines.join("\n").trim();
     }
 
     function renderRunProgress(progress) {

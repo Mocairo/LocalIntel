@@ -133,6 +133,8 @@ def build_runtime_status(
     now: datetime | None = None,
     pid_checker: PidChecker = default_pid_checker,
     port_checker: PortChecker = default_port_checker,
+    web_host: str | None = None,
+    web_port: int | None = None,
 ) -> dict[str, object]:
     app = settings.section("app")
     web = settings.section("web")
@@ -145,8 +147,8 @@ def build_runtime_status(
     daily_time = str(app.get("daily_time", "08:30"))
     data_dir = settings.app_path("data_dir")
     db_path = data_dir / "intel.sqlite"
-    host = str(web.get("host", "127.0.0.1"))
-    port = int(web.get("port", 8765))
+    host = str(web_host or web.get("host", "127.0.0.1"))
+    port = int(web_port or web.get("port", 8765))
     last_run = read_latest_run(db_path)
     if not db_path.exists():
         database_status = "not_initialized"

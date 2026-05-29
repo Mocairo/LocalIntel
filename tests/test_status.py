@@ -174,6 +174,24 @@ def test_build_runtime_status_returns_process_and_schedule_summary(tmp_path: Pat
     assert result["next_run_at"] == "2026-05-28T08:30:00+08:00"
 
 
+def test_build_runtime_status_uses_runtime_web_endpoint_override(tmp_path: Path) -> None:
+    settings = settings_for(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    now = datetime(2026, 5, 28, 7, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
+
+    result = build_runtime_status(
+        settings,
+        now=now,
+        pid_checker=lambda pid: False,
+        port_checker=lambda host, port: host == "127.0.0.1" and port == 8769,
+        web_host="127.0.0.1",
+        web_port=8769,
+    )
+
+    assert result["web"] == {"status": "listening", "host": "127.0.0.1", "port": 8769}
+
+
 def test_build_runtime_status_reports_database_error_for_unreadable_sqlite(tmp_path: Path) -> None:
     settings = settings_for(tmp_path)
     data_dir = tmp_path / "data"
