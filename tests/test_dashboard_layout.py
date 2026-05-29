@@ -44,6 +44,7 @@ def test_today_page_has_workbench_layout() -> None:
         'class="today-workbench"',
         'id="todayHero"',
         'id="todaySidebar"',
+        'id="todayQueueSummary"',
         'id="todayQueue"',
         'id="todayMainlines"',
         'id="todayReader"',
@@ -54,3 +55,23 @@ def test_today_page_has_workbench_layout() -> None:
     assert 'class="command" data-views="today"' not in DASHBOARD_HTML
     assert 'class="mainline-block" data-views="today"' not in DASHBOARD_HTML
     assert 'class="feed-panel" data-views="today"' not in DASHBOARD_HTML
+
+
+def test_dashboard_cards_and_detail_drawer_are_reader_friendly() -> None:
+    for marker in (
+        "overview-balance-grid",
+        'class="trend-hero-chart"',
+        "function paddedTrendRows",
+        "function renderQueueSummary",
+        'class="detail-shell"',
+        'class="detail-hero"',
+        'class="detail-actionbar"',
+        'class="detail-grid"',
+    ):
+        assert marker in DASHBOARD_HTML
+
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in DASHBOARD_HTML
+    assert "height: 330px;" in DASHBOARD_HTML
+    assert "-webkit-line-clamp: 3;" in DASHBOARD_HTML
+    assert ".detail-actionbar span[data-icon]" in DASHBOARD_HTML
+    assert ".detail-actionbar svg" in DASHBOARD_HTML
