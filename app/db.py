@@ -522,7 +522,7 @@ def dashboard_stats(path: Path, report_date: str = "") -> dict[str, object]:
     }
 
 
-def dashboard_alerts(path: Path, report_date: str = "", limit: int = 4) -> list[dict[str, object]]:
+def dashboard_alerts(path: Path, report_date: str = "", limit: int = 6) -> list[dict[str, object]]:
     cached = load_llm_alerts(path, report_date, limit)
     if cached:
         return cached
@@ -554,7 +554,7 @@ def dashboard_alerts(path: Path, report_date: str = "", limit: int = 4) -> list[
     return alerts
 
 
-def load_llm_alerts(path: Path, report_date: str = "", limit: int = 4) -> list[dict[str, object]]:
+def load_llm_alerts(path: Path, report_date: str = "", limit: int = 6) -> list[dict[str, object]]:
     init_db(path)
     if not report_date:
         report_date = latest_report_date(path)

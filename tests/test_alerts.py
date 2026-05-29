@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.alerts import normalize_llm_alerts
+from app.alerts import DEFAULT_ALERT_LIMIT, normalize_llm_alerts
 from app.db import dashboard_alerts, init_db, record_llm_alerts
 
 
@@ -34,9 +34,10 @@ def test_normalize_llm_alerts_limits_and_cleans_rows() -> None:
         ]
     }
 
-    alerts = normalize_llm_alerts(response, limit=4)
+    alerts = normalize_llm_alerts(response, limit=DEFAULT_ALERT_LIMIT)
 
-    assert len(alerts) == 4
+    assert DEFAULT_ALERT_LIMIT == 6
+    assert len(alerts) == 6
     assert alerts[0]["item_hash"] == "a"
     assert alerts[0]["confidence"] == 1.0
     assert alerts[0]["action"] == "立即看"

@@ -2388,6 +2388,13 @@ DASHBOARD_HTML = r"""<!doctype html>
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
     }
+    .alerts-grid.count-1,
+    .alerts-grid.count-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .alerts-grid.count-4 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     .alert-card {
       min-height: 96px;
       padding: 12px;
@@ -2913,7 +2920,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       const dashboardStatus = data.web?.status || data.dashboard?.status;
       const cards = [
         ["仪表盘", processLabel(dashboardStatus), processClass(dashboardStatus)],
-        ["调度器", processLabel(data.scheduler?.status), processClass(data.scheduler?.status)],
+        ["自动更新", schedulerLabel(data.scheduler?.status), schedulerClass(data.scheduler?.status)],
         ["上次运行", lastRunLabel(lastRun), lastRun.status === "error" ? "runtime-error" : processClass(lastRun.status)],
         ["下次运行", formatDateTime(data.next_run_at), "runtime-ok"],
         ["来源", sourceText, failedSources.length ? "runtime-error" : "runtime-ok"]
@@ -2939,6 +2946,20 @@ DASHBOARD_HTML = r"""<!doctype html>
         error: "异常",
         not_initialized: "未初始化"
       }[status] || "未知";
+    }
+
+    function schedulerLabel(status) {
+      return {
+        running: "定时运行中",
+        stopped: "已停止",
+        not_tracked: "手动模式",
+        invalid: "状态异常"
+      }[status] || processLabel(status);
+    }
+
+    function schedulerClass(status) {
+      if (status === "not_tracked") return "runtime-warn";
+      return processClass(status);
     }
 
     function processClass(status) {
@@ -3097,10 +3118,21 @@ DASHBOARD_HTML = r"""<!doctype html>
     function renderHealth(rows) {
       $("health").innerHTML = rows.length ? rows.map((row) => `
         <div class="health-row">
-          <span class="health-source"><i></i><span><b>${esc(row.source)}</b><small class="${row.status === "ok" ? "health-ok" : "health-error"}">${esc(row.status)}</small></span></span>
+          <span class="health-source"><i></i><span><b>${esc(sourceName(row.source))}</b><small class="${row.status === "ok" ? "health-ok" : "health-error"}">${esc(row.status)}</small></span></span>
           <span class="health-count">${esc(row.count)}</span>
         </div>
       `).join("") : "<div class='empty'>暂无状态</div>";
+    }
+
+    function sourceName(source) {
+      return {
+        arxiv: "arXiv",
+        gdelt: "GDELT",
+        github: "GitHub",
+        github_trending: "GitHub Trending",
+        hackernews: "Hacker News",
+        rss: "RSS"
+      }[source] || source || "未知来源";
     }
 
     function showToast(message, sticky = false) {
@@ -3295,7 +3327,9 @@ DASHBOARD_HTML = r"""<!doctype html>
       const alerts = data.alerts || [];
       $("alertsPanel").classList.toggle("show", alerts.length > 0);
       $("alertsNote").textContent = alerts.length ? `${alerts.length} 条高价值信号` : "暂无需要提醒的信号";
-      $("alerts").innerHTML = alerts.map((alert) => renderAlert(alert)).join("");
+      const alertsEl = $("alerts");
+      alertsEl.className = `alerts-grid count-${Math.min(alerts.length, 6)}`;
+      alertsEl.innerHTML = alerts.map((alert) => renderAlert(alert)).join("");
     }
 
     function renderAlert(alert) {

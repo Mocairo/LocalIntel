@@ -15,7 +15,10 @@ from app.summarizer import (
 )
 
 
-def normalize_llm_alerts(response: dict[str, object], limit: int = 4) -> list[dict[str, object]]:
+DEFAULT_ALERT_LIMIT = 6
+
+
+def normalize_llm_alerts(response: dict[str, object], limit: int = DEFAULT_ALERT_LIMIT) -> list[dict[str, object]]:
     rows = response.get("alerts", [])
     if not isinstance(rows, list):
         return []
@@ -44,7 +47,9 @@ def normalize_llm_alerts(response: dict[str, object], limit: int = 4) -> list[di
     return alerts
 
 
-def build_llm_alerts(settings: Settings, items: list[Item], report_date: str, limit: int = 4) -> list[dict[str, object]]:
+def build_llm_alerts(
+    settings: Settings, items: list[Item], report_date: str, limit: int = DEFAULT_ALERT_LIMIT
+) -> list[dict[str, object]]:
     section = settings.section("llm")
     if not section.get("enabled", False):
         return []
