@@ -1095,16 +1095,17 @@ DASHBOARD_HTML = r"""<!doctype html>
     .intel-card {
       position: relative;
       overflow: hidden;
-      height: 330px;
-      min-height: 330px;
-      padding: 16px;
+      height: 410px;
+      min-height: 410px;
+      padding: 14px;
       border: 1px solid var(--line);
       border-top: 3px solid var(--blue);
       border-radius: 8px;
       background: var(--panel);
       display: grid;
-      grid-template-rows: auto auto 64px 74px 26px auto auto;
-      gap: 10px;
+      grid-template-rows: 28px 46px 48px 78px 26px 28px 72px;
+      gap: 8px;
+      align-content: start;
       box-shadow: 0 8px 22px rgba(23, 32, 38, 0.055);
       transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
     }
@@ -1133,13 +1134,15 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
     .card-top {
       position: relative;
-      display: flex;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto auto;
       gap: 8px;
-      align-items: start;
+      align-items: center;
+      min-width: 0;
     }
     .source-pill {
-      max-width: 54%;
+      min-width: 0;
+      max-width: none;
       padding: 3px 8px;
       border-radius: 999px;
       color: var(--teal);
@@ -1207,7 +1210,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       font-size: 14px;
       line-height: 1.55;
       display: -webkit-box;
-      -webkit-line-clamp: 3;
+      -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
@@ -1252,17 +1255,30 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
     .intel-card .judgement-grid {
       min-height: 0;
+      grid-template-rows: repeat(2, minmax(0, 1fr));
       overflow: hidden;
     }
     .intel-card .judgement-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 4px;
+      overflow: hidden;
+    }
+    .intel-card .judgement-row span {
       display: -webkit-box;
-      -webkit-line-clamp: 2;
+      -webkit-line-clamp: 1;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
     .intel-card .card-actions {
-      max-height: 72px;
-      overflow: hidden;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-rows: repeat(2, 32px);
+      gap: 6px;
+      max-height: none;
+      overflow: visible;
+      align-self: end;
     }
     .card-actions a, .drawer-section a {
       display: inline-flex;
@@ -1278,9 +1294,11 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
     .card-actions button, .card-actions a {
       height: 32px;
-      padding: 0 10px;
+      min-width: 0;
+      padding: 0 8px;
       font-size: 13px;
       background: rgba(255, 255, 255, 0.88);
+      justify-content: center;
       white-space: nowrap;
     }
     html[data-theme="night"] .card-actions button,
@@ -1975,9 +1993,9 @@ DASHBOARD_HTML = r"""<!doctype html>
       grid-template-rows: auto auto auto auto;
     }
     .intel-card {
-      height: 330px;
-      min-height: 330px;
-      padding: 16px;
+      height: 410px;
+      min-height: 410px;
+      padding: 14px;
       border-top-width: 0;
       box-shadow: 0 12px 30px rgba(23, 32, 38, 0.055);
     }
@@ -2010,15 +2028,15 @@ DASHBOARD_HTML = r"""<!doctype html>
       line-height: 1.65;
     }
     .card-actions {
-      gap: 7px;
+      gap: 6px;
       padding-top: 8px;
       border-top: 1px solid #edf1f2;
     }
     .card-actions button, .card-actions a {
-      height: 28px;
-      padding: 0 4px;
-      border: 0;
-      background: transparent;
+      height: 32px;
+      padding: 0 6px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.9);
       color: #24333b;
       gap: 4px;
     }
@@ -2578,20 +2596,33 @@ DASHBOARD_HTML = r"""<!doctype html>
     .metric-teal .metric-copy strong { color: var(--teal); }
     .overview-shell {
       display: grid;
-      gap: 14px;
+      gap: 16px;
     }
     .overview-hero {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 12px;
-      align-items: end;
-      padding: 14px 16px;
-      border: 1px solid #dce6e8;
+      gap: 16px;
+      align-items: center;
+      padding: 18px 20px;
+      border: 1px solid #d8e3e7;
       border-radius: 8px;
-      background:
-        linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(37, 87, 167, 0.05) 44%, rgba(255, 255, 255, 0.94)),
-        #fff;
-      box-shadow: 0 12px 34px rgba(15, 23, 42, 0.055);
+      background: #fff;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+    }
+    .overview-command-center {
+      position: relative;
+      overflow: hidden;
+    }
+    .overview-command-center::after {
+      content: "";
+      position: absolute;
+      inset: auto 0 0;
+      height: 4px;
+      background: linear-gradient(90deg, #0f8f8a, #2459b8 48%, #d97706);
+    }
+    .overview-command-center > * {
+      position: relative;
+      z-index: 1;
     }
     .overview-kicker {
       display: inline-flex;
@@ -2613,7 +2644,7 @@ DASHBOARD_HTML = r"""<!doctype html>
     .overview-hero h2 {
       margin: 0;
       color: #0f172a;
-      font-size: 22px;
+      font-size: 24px;
       line-height: 1.2;
     }
     .overview-hero p {
@@ -2647,12 +2678,21 @@ DASHBOARD_HTML = r"""<!doctype html>
     .overview-grid {
       display: grid;
       grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-      gap: 10px;
+      gap: 14px;
       align-items: start;
+    }
+    .overview-focus-grid {
+      grid-template-columns: minmax(360px, 0.92fr) minmax(0, 1.08fr);
     }
     .overview-stack {
       display: grid;
-      gap: 8px;
+      gap: 10px;
+    }
+    .overview-signal-board {
+      align-content: start;
+    }
+    .overview-signal-board .runtime-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .overview-insights {
       display: grid;
@@ -2666,6 +2706,10 @@ DASHBOARD_HTML = r"""<!doctype html>
     .overview-balance-grid .overview-wide {
       grid-column: 1 / -1;
     }
+    .overview-balance-grid #overviewSourceTrend {
+      order: -1;
+      min-height: 336px;
+    }
     .overview-stack .runtime-panel,
     .overview-stack .llm-panel,
     .overview-stack .alerts-panel {
@@ -2678,6 +2722,10 @@ DASHBOARD_HTML = r"""<!doctype html>
       border-radius: 8px;
       background: #fff;
       box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045);
+    }
+    .overview-card:hover {
+      border-color: #d4e1e5;
+      box-shadow: 0 16px 34px rgba(15, 23, 42, 0.07);
     }
     .overview-card-head {
       display: flex;
@@ -2809,13 +2857,13 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
     .trend-hero-card {
       display: grid;
-      gap: 10px;
+      gap: 14px;
     }
     .trend-hero-top {
       display: flex;
       justify-content: space-between;
       gap: 12px;
-      align-items: baseline;
+      align-items: end;
       color: #64748b;
       font-size: 12px;
     }
@@ -2830,26 +2878,27 @@ DASHBOARD_HTML = r"""<!doctype html>
       color: var(--teal);
       font-weight: 760;
     }
-    .trend-hero-chart {
+    .trend-curve-chart {
       width: 100%;
-      height: 154px;
+      height: 220px;
       overflow: visible;
       border-radius: 8px;
       background:
-        linear-gradient(180deg, rgba(15, 118, 110, 0.08), rgba(37, 87, 167, 0.03)),
-        repeating-linear-gradient(0deg, transparent 0 36px, rgba(148, 163, 184, 0.18) 37px 38px);
+        linear-gradient(180deg, rgba(15, 118, 110, 0.055), rgba(37, 87, 167, 0.025)),
+        repeating-linear-gradient(0deg, transparent 0 52px, rgba(148, 163, 184, 0.13) 53px 54px);
     }
-    .trend-hero-chart .trend-area {
-      fill: rgba(15, 143, 138, 0.15);
+    .trend-curve-chart .trend-area {
+      fill: url(#trendCurveFill);
     }
-    .trend-hero-chart .trend-line {
+    .trend-curve-chart .trend-line {
       fill: none;
       stroke: #0f8f8a;
-      stroke-width: 4;
+      stroke-width: 3.5;
       stroke-linecap: round;
       stroke-linejoin: round;
+      filter: drop-shadow(0 8px 10px rgba(15, 143, 138, 0.16));
     }
-    .trend-hero-chart .trend-dot {
+    .trend-curve-chart .trend-dot {
       fill: #fff;
       stroke: #0f8f8a;
       stroke-width: 3;
@@ -3426,8 +3475,8 @@ DASHBOARD_HTML = r"""<!doctype html>
       gap: 12px;
     }
     .intel-card {
-      height: 330px;
-      min-height: 330px;
+      height: 410px;
+      min-height: 410px;
       padding: 14px;
       background: #fff;
       box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
@@ -3443,8 +3492,18 @@ DASHBOARD_HTML = r"""<!doctype html>
       gap: 6px;
     }
     .intel-card .card-actions {
-      max-height: 72px;
-      overflow: hidden;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-rows: repeat(2, 32px);
+      gap: 6px;
+      max-height: none;
+      overflow: visible;
+    }
+    .intel-card .card-actions button,
+    .intel-card .card-actions a {
+      width: 100%;
+      min-width: 0;
+      justify-content: center;
     }
     @media (max-width: 1500px) {
       .app-shell {
@@ -3493,10 +3552,10 @@ DASHBOARD_HTML = r"""<!doctype html>
         max-width: calc(100% - 90px);
       }
       .overview-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(320px, 0.88fr) minmax(0, 1.12fr);
       }
       .overview-insights {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .today-hero {
         grid-template-columns: 1fr;
@@ -3522,6 +3581,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       .metrics { grid-template-columns: repeat(3, minmax(130px, 1fr)); }
       .runtime-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .cluster-strip { grid-template-columns: repeat(2, minmax(210px, 1fr)); }
+      .overview-grid { grid-template-columns: 1fr; }
       .overview-hero { grid-template-columns: 1fr; align-items: start; }
       .overview-actions { justify-content: flex-start; }
       .overview-insights { grid-template-columns: 1fr; }
@@ -3615,7 +3675,7 @@ DASHBOARD_HTML = r"""<!doctype html>
 
       <section class="main-area">
         <section class="overview-shell" data-views="overview">
-          <div class="overview-hero" id="overviewHero">
+          <div class="overview-hero overview-command-center" id="overviewHero">
             <div>
               <span class="overview-kicker">今日总控台</span>
               <h2>情报态势概览</h2>
@@ -3626,8 +3686,8 @@ DASHBOARD_HTML = r"""<!doctype html>
               <button class="overview-action" data-overview-go="watch" type="button"><span data-icon="target"></span>观察雷达</button>
             </div>
           </div>
-          <div class="overview-grid">
-            <div class="overview-stack">
+          <div class="overview-grid overview-focus-grid">
+            <div class="overview-stack overview-signal-board">
               <section class="runtime-panel" id="runtimePanel">
                 <div class="runtime-head">
                   <h2>运行状态</h2>
@@ -4400,18 +4460,29 @@ DASHBOARD_HTML = r"""<!doctype html>
       const total = Number(latest.deduped_total || 0);
       const delta = total - Number(previous.deduped_total || total);
       const values = rows.map((row) => Number(row.deduped_total || 0));
-      const linePoints = sparklinePoints(values, 360, 130);
-      const areaPoints = `0,142 ${linePoints} 360,142`;
-      const dots = sparklineDots(values, 360, 130).map((point) => `<circle class="trend-dot" cx="${point.x}" cy="${point.y}" r="4"></circle>`).join("");
+      const points = trendChartPoints(values, 420, 188);
+      const curvePath = smoothCurvePath(points);
+      const baseline = 206;
+      const firstPoint = points[0] || { x: 0, y: baseline };
+      const lastPoint = points[points.length - 1] || { x: 420, y: baseline };
+      const areaPath = `${curvePath} L ${lastPoint.x},${baseline} L ${firstPoint.x},${baseline} Z`;
+      const dots = points.map((point) => `<circle class="trend-dot" cx="${point.x}" cy="${point.y}" r="4.5"></circle>`).join("");
       const html = `
         <div class="trend-hero-card">
           <div class="trend-hero-top">
             <div><b>${esc(total)}</b><small>有效情报</small></div>
             <span class="trend-hero-delta">较昨日 ${delta >= 0 ? "+" : ""}${esc(delta)}</span>
           </div>
-          <svg class="trend-hero-chart" viewBox="0 0 360 154" preserveAspectRatio="none" role="img" aria-label="近 7 天有效情报趋势">
-            <polygon class="trend-area" points="${esc(areaPoints)}"></polygon>
-            <polyline class="trend-line" points="${esc(linePoints)}"></polyline>
+          <svg class="trend-curve-chart" viewBox="0 0 420 220" preserveAspectRatio="none" role="img" aria-label="近 7 天有效情报趋势">
+            <defs>
+              <linearGradient id="trendCurveFill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#0f8f8a" stop-opacity="0.22"></stop>
+                <stop offset="72%" stop-color="#2459b8" stop-opacity="0.055"></stop>
+                <stop offset="100%" stop-color="#ffffff" stop-opacity="0"></stop>
+              </linearGradient>
+            </defs>
+            <path class="trend-area" d="${esc(areaPath)}"></path>
+            <path class="trend-line" d="${esc(curvePath)}"></path>
             ${dots}
           </svg>
           <div class="trend-hero-scale"><span>${esc(rows[0]?.report_date?.slice(5) || "")}</span><span>${esc(latest.report_date?.slice(5) || "")}</span></div>
@@ -4437,6 +4508,39 @@ DASHBOARD_HTML = r"""<!doctype html>
         });
       }
       return list.slice(-7);
+    }
+
+    function trendChartPoints(values, width, height) {
+      const rows = values.length ? values : [0];
+      const max = Math.max(...rows, 1);
+      const min = Math.min(...rows, 0);
+      const range = Math.max(1, max - min);
+      const padX = 12;
+      const padTop = 18;
+      const padBottom = 18;
+      return rows.map((value, index) => {
+        const x = rows.length === 1 ? width / 2 : padX + (index / (rows.length - 1)) * (width - padX * 2);
+        const y = padTop + (1 - (value - min) / range) * (height - padTop - padBottom);
+        return { x: x.toFixed(1), y: y.toFixed(1) };
+      });
+    }
+
+    function smoothCurvePath(points) {
+      if (!points.length) return "";
+      if (points.length === 1) return `M ${points[0].x},${points[0].y}`;
+      const commands = [`M ${points[0].x},${points[0].y}`];
+      for (let index = 0; index < points.length - 1; index += 1) {
+        const p0 = points[index - 1] || points[index];
+        const p1 = points[index];
+        const p2 = points[index + 1];
+        const p3 = points[index + 2] || p2;
+        const cp1x = Number(p1.x) + (Number(p2.x) - Number(p0.x)) / 6;
+        const cp1y = Number(p1.y) + (Number(p2.y) - Number(p0.y)) / 6;
+        const cp2x = Number(p2.x) - (Number(p3.x) - Number(p1.x)) / 6;
+        const cp2y = Number(p2.y) - (Number(p3.y) - Number(p1.y)) / 6;
+        commands.push(`C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x},${p2.y}`);
+      }
+      return commands.join(" ");
     }
 
     function sparklinePoints(values, width, height) {
@@ -4565,7 +4669,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       return `
         <article class="intel-card" data-hash="${esc(item.hash)}" data-category="${esc(item.category || "general")}" data-bucket="${esc(item.bucket || "scan")}">
           <div class="card-top">
-            <span class="source-pill">${esc(item.source)}</span>
+            <span class="source-pill" title="${esc(sourceName(item.source))}">${esc(sourceName(item.source))}</span>
             <span class="bucket-pill ${esc(item.bucket || "scan")}">${esc(bucketLabels[item.bucket] || "可扫")}</span>
             <span class="read-pill ${esc(item.read_status || "unread")}">${esc(readLabels[item.read_status] || "未读")}</span>
             <span class="score">rank ${esc(index + 1)}</span>

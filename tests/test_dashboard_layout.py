@@ -60,8 +60,12 @@ def test_today_page_has_workbench_layout() -> None:
 def test_dashboard_cards_and_detail_drawer_are_reader_friendly() -> None:
     for marker in (
         "overview-balance-grid",
-        'class="trend-hero-chart"',
+        "overview-command-center",
+        "overview-focus-grid",
+        "overview-signal-board",
+        'class="trend-curve-chart"',
         "function paddedTrendRows",
+        "function smoothCurvePath",
         "function renderQueueSummary",
         'class="detail-shell"',
         'class="detail-hero"',
@@ -71,7 +75,10 @@ def test_dashboard_cards_and_detail_drawer_are_reader_friendly() -> None:
         assert marker in DASHBOARD_HTML
 
     assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in DASHBOARD_HTML
-    assert "height: 330px;" in DASHBOARD_HTML
-    assert "-webkit-line-clamp: 3;" in DASHBOARD_HTML
+    assert "height: 410px;" in DASHBOARD_HTML
+    assert "grid-template-rows: 28px 46px 48px 78px 26px 28px 72px;" in DASHBOARD_HTML
+    assert ".intel-card .card-actions {" in DASHBOARD_HTML
+    assert "overflow: visible;" in DASHBOARD_HTML
+    assert "-webkit-line-clamp: 2;" in DASHBOARD_HTML
     assert ".detail-actionbar span[data-icon]" in DASHBOARD_HTML
     assert ".detail-actionbar svg" in DASHBOARD_HTML
