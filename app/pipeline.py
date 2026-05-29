@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from app.alerts import build_llm_alerts
 from app.config import Settings, load_settings
 from app.clusters import build_clusters
 from app.db import record_clusters, record_run, save_items
@@ -72,11 +73,14 @@ def run_pipeline(
     emit_progress(progress, "clusters", "正在生成今日主线", 88)
     clusters = build_clusters(items)
     stats["cluster_count"] = len(clusters)
-    emit_progress(progress, "save", "正在写入本地数据库和报告", 94)
+    emit_progress(progress, "save", "正在写入本地数据库", 92)
     saved = save_items(db_path, items)
     stats["inserted"] = saved
     record_run(db_path, day.isoformat(), items, stats, llm_summary)
     record_clusters(db_path, day.isoformat(), clusters)
+    emit_progress(progress, "alerts", "正在判断高价值信号", 96)
+    build_llm_alerts(settings, items, day.isoformat())
+    emit_progress(progress, "report", "正在生成报告文件", 98)
     write_run_log(settings, day.isoformat(), stats, llm_summary)
     md_path, html_path = write_reports(settings.app_path("report_dir"), day.isoformat(), items, llm_summary, stats)
     weekly = build_weekly_report(db_path, settings.app_path("report_dir"), day.isoformat())

@@ -2662,8 +2662,8 @@ DASHBOARD_HTML = r"""<!doctype html>
         </section>
         <section class="alerts-panel" id="alertsPanel">
           <div class="alerts-head">
-            <h2>监控提醒</h2>
-            <span id="alertsNote">只显示高价值信号</span>
+            <h2>高价值信号</h2>
+            <span id="alertsNote">规则筛选，模型判断</span>
           </div>
           <div class="alerts-grid" id="alerts"></div>
         </section>
@@ -2931,9 +2931,9 @@ DASHBOARD_HTML = r"""<!doctype html>
       return {
         running: "运行中",
         stopped: "已停止",
-        not_tracked: "未追踪",
+        not_tracked: "未启动",
         invalid: "PID 无效",
-        listening: "监听中",
+        listening: "运行中",
         unreachable: "未监听",
         ok: "正常",
         error: "异常",
@@ -3300,16 +3300,20 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     function renderAlert(alert) {
       const kindLabels = {
+        llm_watch: "模型判断",
         github_spike: "GitHub 异动",
         paper_signal: "论文信号",
         multi_source: "多源主线",
         topic_watch: "主题触发"
       };
+      const confidence = Number(alert.confidence || 0);
+      const confidenceText = confidence > 0 ? `置信度 ${Math.round(confidence * 100)}%` : "";
+      const detail = [alert.detail || "", alert.action || "", confidenceText].filter(Boolean).join(" · ");
       return `
         <article class="alert-card">
-          <strong>${esc(kindLabels[alert.kind] || alert.title || "监控提醒")}</strong>
+          <strong>${esc(kindLabels[alert.kind] || alert.title || "高价值信号")}</strong>
           <a href="${esc(alert.url || "#")}" target="_blank" rel="noreferrer" data-open="${esc(alert.item_hash || "")}">${esc(alert.item_title || alert.title || "查看条目")}</a>
-          <p>${esc(alert.detail || "")}</p>
+          <p>${esc(detail)}</p>
         </article>
       `;
     }

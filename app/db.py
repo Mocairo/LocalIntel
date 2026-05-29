@@ -119,6 +119,24 @@ CREATE TABLE IF NOT EXISTS llm_jobs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_llm_jobs_date ON llm_jobs(report_date, id DESC);
+
+CREATE TABLE IF NOT EXISTS llm_alerts (
+    report_date TEXT NOT NULL,
+    item_hash TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    action TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    item_title TEXT NOT NULL,
+    source TEXT NOT NULL,
+    url TEXT NOT NULL,
+    score REAL NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (report_date, item_hash, kind)
+);
+
+CREATE INDEX IF NOT EXISTS idx_llm_alerts_date ON llm_alerts(report_date, confidence DESC, score DESC);
 """
 
 ITEM_EXTRA_COLUMNS = {
@@ -505,6 +523,9 @@ def dashboard_stats(path: Path, report_date: str = "") -> dict[str, object]:
 
 
 def dashboard_alerts(path: Path, report_date: str = "", limit: int = 4) -> list[dict[str, object]]:
+    cached = load_llm_alerts(path, report_date, limit)
+    if cached:
+        return cached
     items = load_dashboard_items(path, report_date=report_date, include_ignored=False, limit=200)
     alerts: list[dict[str, object]] = []
     seen: set[str] = set()
@@ -531,6 +552,60 @@ def dashboard_alerts(path: Path, report_date: str = "", limit: int = 4) -> list[
         if len(alerts) >= limit:
             break
     return alerts
+
+
+def load_llm_alerts(path: Path, report_date: str = "", limit: int = 4) -> list[dict[str, object]]:
+    init_db(path)
+    if not report_date:
+        report_date = latest_report_date(path)
+    if not report_date:
+        return []
+    with sqlite3.connect(path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT kind, title, detail, action, confidence, item_hash, item_title, source, url, score
+            FROM llm_alerts
+            WHERE report_date = ?
+            ORDER BY confidence DESC, score DESC
+            LIMIT ?
+            """,
+            (report_date, limit),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def record_llm_alerts(path: Path, report_date: str, alerts: list[dict[str, object]]) -> None:
+    init_db(path)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with sqlite3.connect(path) as conn:
+        conn.execute("DELETE FROM llm_alerts WHERE report_date = ?", (report_date,))
+        for alert in alerts:
+            item_hash_value = str(alert.get("item_hash") or "").strip()
+            if not item_hash_value:
+                continue
+            conn.execute(
+                """
+                INSERT INTO llm_alerts
+                    (report_date, item_hash, kind, title, detail, action, confidence,
+                     item_title, source, url, score, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    report_date,
+                    item_hash_value,
+                    str(alert.get("kind") or "llm_watch")[:40],
+                    str(alert.get("title") or "模型判断")[:120],
+                    str(alert.get("detail") or "")[:500],
+                    str(alert.get("action") or "观察")[:20],
+                    float(alert.get("confidence") or 0),
+                    str(alert.get("item_title") or "")[:300],
+                    str(alert.get("source") or "")[:120],
+                    str(alert.get("url") or ""),
+                    float(alert.get("score") or 0),
+                    now,
+                ),
+            )
 
 
 def mark_item(
