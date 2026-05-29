@@ -19,6 +19,7 @@ from app.db import (
     load_dashboard_clusters,
     load_dashboard_items,
     load_watch_radar,
+    load_watch_radar_history,
     load_item_detail,
     mark_item,
     record_user_event,
@@ -107,6 +108,10 @@ class LocalIntelHandler(BaseHTTPRequestHandler):
             params = parse_qs(parsed.query)
             self.send_json({"watch_radar": load_watch_radar(self.state.db_path, first(params, "date"))})
             return
+        if parsed.path == "/api/watch-radar-history":
+            params = parse_qs(parsed.query)
+            self.send_json({"watch_radar_history": load_watch_radar_history(self.state.db_path, first(params, "days") or 7)})
+            return
         if parsed.path == "/api/weekly":
             params = parse_qs(parsed.query)
             weekly = build_weekly_report(
@@ -125,6 +130,7 @@ class LocalIntelHandler(BaseHTTPRequestHandler):
                     "running": self.state.running,
                     "progress": self.state.progress,
                     "watch_radar": load_watch_radar(self.state.db_path, report_date),
+                    "watch_radar_history": load_watch_radar_history(self.state.db_path),
                 }
             )
             return
@@ -2536,6 +2542,77 @@ DASHBOARD_HTML = r"""<!doctype html>
       font-size: 12px;
       line-height: 1.5;
     }
+    .watch-history {
+      display: none;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #edf0f2;
+    }
+    .watch-history.show {
+      display: grid;
+      gap: 8px;
+    }
+    .watch-history-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      color: #6b7280;
+      font-size: 12px;
+    }
+    .watch-history-head h3 {
+      margin: 0;
+      color: #111827;
+      font-size: 15px;
+    }
+    .watch-history-row {
+      display: grid;
+      grid-template-columns: minmax(120px, 1fr) minmax(180px, 1.4fr) minmax(140px, 0.9fr);
+      gap: 10px;
+      align-items: center;
+      padding: 9px 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #fbfcfc;
+    }
+    .watch-history-name {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+    .watch-history-name strong {
+      overflow: hidden;
+      color: #111827;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+    .watch-history-name span,
+    .watch-history-meta {
+      color: #6b7280;
+      font-size: 12px;
+    }
+    .watch-dots {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 18px;
+    }
+    .watch-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      background: #eef2f7;
+    }
+    .watch-dot.active {
+      border-color: #0f766e;
+      background: #0f8f8a;
+      box-shadow: 0 0 0 3px rgba(15, 143, 138, 0.12);
+    }
+    .watch-history-meta {
+      text-align: right;
+    }
     .alert-card {
       min-height: 96px;
       padding: 12px;
@@ -2708,6 +2785,12 @@ DASHBOARD_HTML = r"""<!doctype html>
       .topbar-inner, .brand-row, .command, .metrics, .cluster-strip, .rail, .config-grid, .watch-target-row {
         grid-template-columns: 1fr;
       }
+      .watch-history-row {
+        grid-template-columns: 1fr;
+      }
+      .watch-history-meta {
+        text-align: left;
+      }
       .watch-target-keywords, .watch-target-description {
         grid-column: auto;
       }
@@ -2828,6 +2911,7 @@ DASHBOARD_HTML = r"""<!doctype html>
             <span id="watchNote">长期关注对象的动态</span>
           </div>
           <div class="watch-grid" id="watchRadar"></div>
+          <div class="watch-history" id="watchHistory"></div>
         </section>
 
         <section class="mainline-block">
@@ -3292,7 +3376,8 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     function renderWatchRadar(data) {
       const rows = data.watch_radar || [];
-      $("watchPanel").classList.toggle("show", rows.length > 0);
+      const historyRows = data.watch_radar_history || [];
+      $("watchPanel").classList.toggle("show", rows.length > 0 || historyRows.length > 0);
       $("watchNote").textContent = rows.length ? `${rows.length} 个观察对象` : "长期关注对象的动态";
       const grid = $("watchRadar");
       grid.className = `watch-grid count-${Math.min(rows.length, 6)}`;
@@ -3304,6 +3389,43 @@ DASHBOARD_HTML = r"""<!doctype html>
           <p>${esc(row.action || "持续观察")} · 命中 ${esc(row.match_count || 0)} 条 · 置信度 ${Math.round(Number(row.confidence || 0) * 100)}%</p>
         </article>
       `).join("") : "";
+      renderWatchHistory(historyRows);
+    }
+
+    function renderWatchHistory(rows) {
+      const panel = $("watchHistory");
+      if (!rows.length) {
+        panel.classList.remove("show");
+        panel.innerHTML = "";
+        return;
+      }
+      panel.classList.add("show");
+      panel.innerHTML = `
+        <div class="watch-history-head">
+          <h3>近 7 次走势</h3>
+          <span>${esc(rows.length)} 个观察对象</span>
+        </div>
+        ${rows.map((row) => `
+          <div class="watch-history-row">
+            <div class="watch-history-name">
+              <strong>${esc(row.name || row.target_id || "观察对象")}</strong>
+              <span>${esc(row.latest_status === "active" ? "最近有变化" : "最近暂无动向")} · ${esc(row.latest_action || "持续观察")}</span>
+            </div>
+            <div class="watch-dots">${renderWatchDots(row.history || [])}</div>
+            <div class="watch-history-meta">
+              活跃 ${esc(row.active_days || 0)} 天 · 命中 ${esc(row.total_matches || 0)} 条 · 置信度 ${Math.round(Number(row.max_confidence || 0) * 100)}%
+            </div>
+          </div>
+        `).join("")}
+      `;
+    }
+
+    function renderWatchDots(history) {
+      return history.map((point) => {
+        const active = point.status === "active";
+        const title = `${point.report_date || ""} · ${active ? "有变化" : "暂无动向"} · 命中 ${point.match_count || 0} 条 · 置信度 ${Math.round(Number(point.confidence || 0) * 100)}%`;
+        return `<span class="watch-dot ${active ? "active" : ""}" title="${esc(title)}"></span>`;
+      }).join("");
     }
 
     function sourceName(source) {

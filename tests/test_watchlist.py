@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.db import init_db, load_watch_radar, record_watch_radar
+from app.db import init_db, load_watch_radar, load_watch_radar_history, record_watch_radar
 from app.models import Item
 from app.watchlist import build_local_watch_radar, load_watchlist, target_matches
 
@@ -131,6 +131,49 @@ def test_watch_radar_cache_round_trip(tmp_path) -> None:
     assert cached[0]["summary"] == "今天出现了新的 Agent 项目。"
 
 
+def test_watch_radar_history_groups_recent_dates_by_target(tmp_path) -> None:
+    db_path = tmp_path / "intel.sqlite"
+    init_db(db_path)
+
+    record_watch_radar(
+        db_path,
+        "2026-05-27",
+        [
+            watch_row("agent", "AI Agent", "quiet", 0, 0.0, 0),
+            watch_row("rag", "RAG", "active", 1, 0.6, 22),
+        ],
+    )
+    record_watch_radar(
+        db_path,
+        "2026-05-28",
+        [
+            watch_row("agent", "AI Agent", "active", 3, 0.8, 80),
+            watch_row("rag", "RAG", "quiet", 0, 0.0, 0),
+        ],
+    )
+    record_watch_radar(
+        db_path,
+        "2026-05-29",
+        [
+            watch_row("agent", "AI Agent", "active", 5, 0.9, 91),
+            watch_row("chips", "Chips", "quiet", 0, 0.0, 0),
+        ],
+    )
+
+    history = load_watch_radar_history(db_path, days=2)
+
+    assert [row["target_id"] for row in history] == ["agent", "chips", "rag"]
+    assert history[0]["latest_status"] == "active"
+    assert history[0]["active_days"] == 2
+    assert history[0]["total_matches"] == 8
+    assert [point["report_date"] for point in history[0]["history"]] == ["2026-05-28", "2026-05-29"]
+    assert [point["match_count"] for point in history[0]["history"]] == [3, 5]
+    assert history[1]["latest_status"] == "quiet"
+    assert history[1]["history"] == [
+        {"report_date": "2026-05-29", "status": "quiet", "match_count": 0, "confidence": 0.0}
+    ]
+
+
 def test_short_ascii_keywords_match_whole_words_only() -> None:
     target = load_watchlist_from_text(
         """
@@ -172,3 +215,28 @@ def load_watchlist_from_text(text: str):
         path = Path(tmp) / "interests.toml"
         path.write_text(text.strip() + "\n", encoding="utf-8")
         return load_watchlist(path)
+
+
+def watch_row(
+    target_id: str,
+    name: str,
+    status: str,
+    match_count: int,
+    confidence: float,
+    score: float,
+) -> dict[str, object]:
+    return {
+        "target_id": target_id,
+        "name": name,
+        "type": "topic",
+        "status": status,
+        "summary": f"{name} {status}",
+        "action": "立即看" if status == "active" else "持续观察",
+        "confidence": confidence,
+        "match_count": match_count,
+        "item_hash": f"{target_id}-{status}",
+        "item_title": name,
+        "source": "github_trending" if match_count else "",
+        "url": f"https://example.com/{target_id}" if match_count else "",
+        "score": score,
+    }

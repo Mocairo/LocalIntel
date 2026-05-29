@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS watch_radar (
 );
 
 CREATE INDEX IF NOT EXISTS idx_watch_radar_date_score ON watch_radar(report_date, score DESC);
+CREATE INDEX IF NOT EXISTS idx_watch_radar_target_date ON watch_radar(target_id, report_date);
 """
 
 ITEM_EXTRA_COLUMNS = {
@@ -649,6 +650,89 @@ def load_watch_radar(path: Path, report_date: str = "", limit: int = 6) -> list[
             (report_date, limit),
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def load_watch_radar_history(path: Path, days: int = 7) -> list[dict[str, object]]:
+    init_db(path)
+    try:
+        day_limit = max(1, min(30, int(days)))
+    except (TypeError, ValueError):
+        day_limit = 7
+    with sqlite3.connect(path) as conn:
+        conn.row_factory = sqlite3.Row
+        date_rows = conn.execute(
+            """
+            SELECT DISTINCT report_date
+            FROM watch_radar
+            ORDER BY report_date DESC
+            LIMIT ?
+            """,
+            (day_limit,),
+        ).fetchall()
+        dates = sorted(row["report_date"] for row in date_rows)
+        if not dates:
+            return []
+        placeholders = ",".join("?" for _ in dates)
+        rows = conn.execute(
+            f"""
+            SELECT report_date, target_id, name, type, status, action, confidence, match_count, score
+            FROM watch_radar
+            WHERE report_date IN ({placeholders})
+            ORDER BY report_date, target_id
+            """,
+            dates,
+        ).fetchall()
+
+    grouped: dict[str, dict[str, object]] = {}
+    for row in rows:
+        target_id = str(row["target_id"])
+        report_date = str(row["report_date"])
+        entry = grouped.setdefault(
+            target_id,
+            {
+                "target_id": target_id,
+                "name": row["name"],
+                "type": row["type"],
+                "latest_status": row["status"],
+                "latest_action": row["action"],
+                "latest_confidence": float(row["confidence"] or 0),
+                "latest_match_count": int(row["match_count"] or 0),
+                "latest_report_date": report_date,
+                "active_days": 0,
+                "total_matches": 0,
+                "max_confidence": 0.0,
+                "history": [],
+            },
+        )
+        match_count = int(row["match_count"] or 0)
+        confidence = float(row["confidence"] or 0)
+        status = str(row["status"] or "quiet")
+        entry["history"].append(
+            {
+                "report_date": report_date,
+                "status": status,
+                "match_count": match_count,
+                "confidence": confidence,
+            }
+        )
+        entry["total_matches"] = int(entry["total_matches"]) + match_count
+        entry["max_confidence"] = max(float(entry["max_confidence"]), confidence)
+        if status == "active":
+            entry["active_days"] = int(entry["active_days"]) + 1
+        if report_date >= str(entry["latest_report_date"]):
+            entry["latest_status"] = status
+            entry["latest_action"] = row["action"]
+            entry["latest_confidence"] = confidence
+            entry["latest_match_count"] = match_count
+            entry["latest_report_date"] = report_date
+
+    history = list(grouped.values())
+    history.sort(key=lambda entry: str(entry["name"]).lower())
+    history.sort(key=lambda entry: str(entry["latest_report_date"]), reverse=True)
+    history.sort(key=lambda entry: int(entry["total_matches"]), reverse=True)
+    history.sort(key=lambda entry: int(entry["active_days"]), reverse=True)
+    history.sort(key=lambda entry: str(entry["latest_status"]) == "active", reverse=True)
+    return history
 
 
 def record_watch_radar(path: Path, report_date: str, rows: list[dict[str, object]]) -> None:
