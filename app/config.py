@@ -44,8 +44,6 @@ def load_settings(config_path: str | Path, env_path: str | Path | None = None) -
             env = config.parent / env
         if env.exists():
             load_dotenv(env)
-        else:
-            load_dotenv(config.parent / ".env.example")
     with config.open("rb") as fh:
         values = tomllib.load(fh)
     return Settings(root=config.parent, values=values)

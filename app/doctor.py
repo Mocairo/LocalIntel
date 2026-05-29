@@ -55,7 +55,7 @@ def run_local_checks(config_path: Path, env_path: Path) -> list[CheckResult]:
         except Exception as exc:
             results.append(CheckResult("env", False, f"环境文件读取失败: {exc}", critical=False))
     else:
-        results.append(CheckResult("env", True, ".env 不存在，将使用公共来源或 .env.example", critical=False))
+        results.append(CheckResult("env", True, ".env 不存在，将只使用系统环境变量和公共来源", critical=False))
 
     try:
         directories = [
