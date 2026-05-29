@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.db import init_db, load_watch_radar, load_watch_radar_history, record_watch_radar
+from app.db import init_db, load_watch_radar, load_watch_radar_history, load_watch_target_detail, record_watch_radar
 from app.models import Item
 from app.watchlist import build_local_watch_radar, load_watchlist, target_matches
 
@@ -172,6 +172,50 @@ def test_watch_radar_history_groups_recent_dates_by_target(tmp_path) -> None:
     assert history[1]["history"] == [
         {"report_date": "2026-05-29", "status": "quiet", "match_count": 0, "confidence": 0.0}
     ]
+
+
+def test_watch_target_detail_returns_recent_records_for_one_target(tmp_path) -> None:
+    db_path = tmp_path / "intel.sqlite"
+    init_db(db_path)
+
+    record_watch_radar(
+        db_path,
+        "2026-05-27",
+        [
+            watch_row("agent", "AI Agent", "quiet", 0, 0.0, 0),
+            watch_row("rag", "RAG", "active", 2, 0.7, 50),
+        ],
+    )
+    record_watch_radar(
+        db_path,
+        "2026-05-28",
+        [watch_row("agent", "AI Agent", "active", 3, 0.8, 80)],
+    )
+    record_watch_radar(
+        db_path,
+        "2026-05-29",
+        [watch_row("agent", "AI Agent", "active", 5, 0.9, 91)],
+    )
+
+    detail = load_watch_target_detail(db_path, "agent", days=2)
+
+    assert detail["target"] == {
+        "target_id": "agent",
+        "name": "AI Agent",
+        "type": "topic",
+        "latest_status": "active",
+        "latest_action": "立即看",
+        "latest_confidence": 0.9,
+        "latest_match_count": 5,
+        "latest_report_date": "2026-05-29",
+        "active_days": 2,
+        "total_matches": 8,
+        "max_confidence": 0.9,
+    }
+    assert [row["report_date"] for row in detail["records"]] == ["2026-05-29", "2026-05-28"]
+    assert [row["target_id"] for row in detail["records"]] == ["agent", "agent"]
+    assert detail["records"][0]["item_title"] == "AI Agent"
+    assert load_watch_target_detail(db_path, "missing") == {}
 
 
 def test_short_ascii_keywords_match_whole_words_only() -> None:

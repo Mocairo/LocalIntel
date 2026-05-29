@@ -735,6 +735,53 @@ def load_watch_radar_history(path: Path, days: int = 7) -> list[dict[str, object
     return history
 
 
+def load_watch_target_detail(path: Path, target_id: str, days: int = 7) -> dict[str, object]:
+    init_db(path)
+    target = str(target_id or "").strip()
+    if not target:
+        return {}
+    try:
+        day_limit = max(1, min(30, int(days)))
+    except (TypeError, ValueError):
+        day_limit = 7
+    with sqlite3.connect(path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT report_date, target_id, name, type, status, summary, action, confidence,
+                   match_count, item_hash, item_title, source, url, score
+            FROM watch_radar
+            WHERE target_id = ?
+            ORDER BY report_date DESC
+            LIMIT ?
+            """,
+            (target, day_limit),
+        ).fetchall()
+    records = [dict(row) for row in rows]
+    if not records:
+        return {}
+    latest = records[0]
+    active_days = sum(1 for row in records if row.get("status") == "active")
+    total_matches = sum(int(row.get("match_count") or 0) for row in records)
+    max_confidence = max(float(row.get("confidence") or 0) for row in records)
+    return {
+        "target": {
+            "target_id": latest["target_id"],
+            "name": latest["name"],
+            "type": latest["type"],
+            "latest_status": latest["status"],
+            "latest_action": latest["action"],
+            "latest_confidence": float(latest["confidence"] or 0),
+            "latest_match_count": int(latest["match_count"] or 0),
+            "latest_report_date": latest["report_date"],
+            "active_days": active_days,
+            "total_matches": total_matches,
+            "max_confidence": max_confidence,
+        },
+        "records": records,
+    }
+
+
 def record_watch_radar(path: Path, report_date: str, rows: list[dict[str, object]]) -> None:
     init_db(path)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")

@@ -20,6 +20,7 @@ from app.db import (
     load_dashboard_items,
     load_watch_radar,
     load_watch_radar_history,
+    load_watch_target_detail,
     load_item_detail,
     mark_item,
     record_user_event,
@@ -111,6 +112,14 @@ class LocalIntelHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/watch-radar-history":
             params = parse_qs(parsed.query)
             self.send_json({"watch_radar_history": load_watch_radar_history(self.state.db_path, first(params, "days") or 7)})
+            return
+        if parsed.path == "/api/watch-target":
+            params = parse_qs(parsed.query)
+            detail = load_watch_target_detail(self.state.db_path, first(params, "target"), first(params, "days") or 7)
+            if not detail:
+                self.send_error(HTTPStatus.NOT_FOUND, "watch target not found")
+                return
+            self.send_json(detail)
             return
         if parsed.path == "/api/weekly":
             params = parse_qs(parsed.query)
@@ -2528,13 +2537,34 @@ DASHBOARD_HTML = r"""<!doctype html>
       color: #0f766e;
       font-size: 13px;
     }
-    .watch-card a {
+    .watch-card a, .watch-target-link {
       display: block;
       margin: 4px 0 6px;
       color: #111827;
       text-decoration: none;
       font-weight: 750;
       line-height: 1.35;
+    }
+    .watch-target-link {
+      width: 100%;
+      height: auto;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+      text-align: left;
+      white-space: normal;
+    }
+    .watch-target-link:hover {
+      color: #0f766e;
+      box-shadow: none;
+      transform: none;
+    }
+    .watch-item-link {
+      margin-top: 7px;
+      color: #0f766e;
+      font-size: 12px;
+      font-weight: 650;
     }
     .watch-card p {
       margin: 0;
@@ -2570,10 +2600,20 @@ DASHBOARD_HTML = r"""<!doctype html>
       grid-template-columns: minmax(120px, 1fr) minmax(180px, 1.4fr) minmax(140px, 0.9fr);
       gap: 10px;
       align-items: center;
+      width: 100%;
+      height: auto;
       padding: 9px 10px;
       border: 1px solid #e5e7eb;
       border-radius: 8px;
       background: #fbfcfc;
+      color: inherit;
+      text-align: left;
+      white-space: normal;
+    }
+    .watch-history-row:hover {
+      border-color: #b8d8d4;
+      box-shadow: 0 8px 18px rgba(15, 118, 110, 0.08);
+      transform: none;
     }
     .watch-history-name {
       display: grid;
@@ -2612,6 +2652,29 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
     .watch-history-meta {
       text-align: right;
+    }
+    .watch-detail-records {
+      display: grid;
+      gap: 10px;
+    }
+    .watch-detail-record {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+    .watch-detail-record b {
+      display: block;
+      margin-bottom: 5px;
+    }
+    .watch-detail-record p {
+      margin: 6px 0 0;
+      color: var(--ink);
+      font-size: 13px;
+    }
+    .watch-detail-record a {
+      display: inline-block;
+      margin-top: 6px;
     }
     .alert-card {
       min-height: 96px;
@@ -3384,9 +3447,10 @@ DASHBOARD_HTML = r"""<!doctype html>
       grid.innerHTML = rows.length ? rows.map((row) => `
         <article class="watch-card">
           <strong>${esc(row.status === "active" ? "有变化" : "暂无动向")}</strong>
-          <a href="${esc(row.url || "#")}" target="_blank" rel="noreferrer" data-open="${esc(row.item_hash || "")}">${esc(row.name || row.target_id || "观察对象")}</a>
+          <button class="watch-target-link" data-watch-target="${esc(row.target_id || "")}" type="button">${esc(row.name || row.target_id || "观察对象")}</button>
           <p>${esc(row.summary || "")}</p>
           <p>${esc(row.action || "持续观察")} · 命中 ${esc(row.match_count || 0)} 条 · 置信度 ${Math.round(Number(row.confidence || 0) * 100)}%</p>
+          ${row.url ? `<a class="watch-item-link" href="${esc(row.url)}" target="_blank" rel="noreferrer" data-open="${esc(row.item_hash || "")}">代表条目：${esc(row.item_title || "打开原文")}</a>` : ""}
         </article>
       `).join("") : "";
       renderWatchHistory(historyRows);
@@ -3406,7 +3470,7 @@ DASHBOARD_HTML = r"""<!doctype html>
           <span>${esc(rows.length)} 个观察对象</span>
         </div>
         ${rows.map((row) => `
-          <div class="watch-history-row">
+          <button class="watch-history-row" data-watch-target="${esc(row.target_id || "")}" type="button">
             <div class="watch-history-name">
               <strong>${esc(row.name || row.target_id || "观察对象")}</strong>
               <span>${esc(row.latest_status === "active" ? "最近有变化" : "最近暂无动向")} · ${esc(row.latest_action || "持续观察")}</span>
@@ -3415,7 +3479,7 @@ DASHBOARD_HTML = r"""<!doctype html>
             <div class="watch-history-meta">
               活跃 ${esc(row.active_days || 0)} 天 · 命中 ${esc(row.total_matches || 0)} 条 · 置信度 ${Math.round(Number(row.max_confidence || 0) * 100)}%
             </div>
-          </div>
+          </button>
         `).join("")}
       `;
     }
@@ -3692,6 +3756,53 @@ DASHBOARD_HTML = r"""<!doctype html>
       openDrawer("detailDrawer");
       await loadStats();
       await loadItems();
+    }
+
+    async function openWatchTargetDetail(targetId) {
+      if (!targetId) return;
+      const params = new URLSearchParams({ target: targetId, days: "7" });
+      const data = await api(`/api/watch-target?${params}`);
+      const target = data.target || {};
+      const records = data.records || [];
+      $("detailTitle").textContent = target.name || target.target_id || "观察对象";
+      $("detailBody").innerHTML = `
+        <div class="drawer-section">
+          <div class="meta">
+            ${esc(watchStatusLabel(target.latest_status))} · ${esc(target.latest_action || "持续观察")} · 最近 ${esc(target.latest_report_date || "-")} · 活跃 ${esc(target.active_days || 0)} 天 · 命中 ${esc(target.total_matches || 0)} 条 · 最高置信度 ${Math.round(Number(target.max_confidence || 0) * 100)}%
+          </div>
+        </div>
+        <div class="drawer-section">
+          <h3>最新判断</h3>
+          ${records.length ? renderWatchTargetRecord(records[0], true) : "<div class='empty'>暂无判断记录</div>"}
+        </div>
+        <div class="drawer-section">
+          <h3>近期记录</h3>
+          <div class="watch-detail-records">
+            ${records.length ? records.map((record) => renderWatchTargetRecord(record, false)).join("") : "<div class='empty'>暂无历史记录</div>"}
+          </div>
+        </div>
+      `;
+      openDrawer("detailDrawer");
+    }
+
+    function renderWatchTargetRecord(record, compact) {
+      const confidence = Math.round(Number(record.confidence || 0) * 100);
+      const title = record.item_title || "代表条目";
+      const itemLink = record.url
+        ? `<a href="${esc(record.url)}" target="_blank" rel="noreferrer" data-open="${esc(record.item_hash || "")}">${esc(title)}</a>`
+        : "<span class='meta'>暂无代表条目</span>";
+      return `
+        <div class="watch-detail-record">
+          <b>${esc(record.report_date || "-")} · ${esc(watchStatusLabel(record.status))} · ${esc(record.action || "持续观察")}</b>
+          <div class="meta">命中 ${esc(record.match_count || 0)} 条 · 置信度 ${esc(confidence)}% · ${esc(sourceName(record.source || ""))} · score ${Number(record.score || 0).toFixed(1)}</div>
+          <p>${esc(record.summary || "暂无摘要")}</p>
+          ${compact ? `<p>${itemLink}</p>` : itemLink}
+        </div>
+      `;
+    }
+
+    function watchStatusLabel(status) {
+      return status === "active" ? "有变化" : "暂无动向";
     }
 
     function openDrawer(id) {
@@ -4029,6 +4140,20 @@ DASHBOARD_HTML = r"""<!doctype html>
       }
       const button = event.target.closest("button[data-cluster-hash]");
       if (button) await openDetail(button.dataset.clusterHash);
+    });
+    $("watchRadar").addEventListener("click", async (event) => {
+      const openLink = event.target.closest("a[data-open]");
+      if (openLink) {
+        await recordEvent(openLink.dataset.open, "open");
+        setTimeout(refresh, 800);
+        return;
+      }
+      const target = event.target.closest("[data-watch-target]");
+      if (target) await openWatchTargetDetail(target.dataset.watchTarget);
+    });
+    $("watchHistory").addEventListener("click", async (event) => {
+      const target = event.target.closest("[data-watch-target]");
+      if (target) await openWatchTargetDetail(target.dataset.watchTarget);
     });
     $("items").addEventListener("click", async (event) => {
       const openLink = event.target.closest("a[data-open]");
