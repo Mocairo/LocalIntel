@@ -401,6 +401,14 @@ DASHBOARD_HTML = r"""<!doctype html>
       box-shadow: 0 6px 18px rgba(23, 32, 38, 0.08);
       transform: translateY(-1px);
     }
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    a:focus-visible {
+      outline: 3px solid rgba(15, 118, 110, 0.28);
+      outline-offset: 2px;
+    }
     button.primary { color: #fff; background: linear-gradient(135deg, var(--teal), #0c5f8f); border-color: var(--teal); }
     button.dark { color: #fff; background: linear-gradient(135deg, #172026, #263844); border-color: #172026; }
     button.soft.active, .category-btn.active { color: var(--teal); border-color: var(--teal); background: var(--teal-soft); }
@@ -2442,6 +2450,254 @@ DASHBOARD_HTML = r"""<!doctype html>
     .metric-amber .metric-copy strong { color: #9a650d; }
     .metric-plum .metric-copy strong { color: #6d3f83; }
     .metric-teal .metric-copy strong { color: var(--teal); }
+    .overview-shell {
+      display: grid;
+      gap: 14px;
+    }
+    .overview-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: end;
+      padding: 18px;
+      border: 1px solid #dce6e8;
+      border-radius: 8px;
+      background:
+        linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(37, 87, 167, 0.05) 44%, rgba(255, 255, 255, 0.94)),
+        #fff;
+      box-shadow: 0 12px 34px rgba(15, 23, 42, 0.055);
+    }
+    .overview-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      color: var(--teal);
+      font-size: 12px;
+      font-weight: 760;
+    }
+    .overview-kicker::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--teal);
+      box-shadow: 0 0 0 5px rgba(15, 118, 110, 0.12);
+    }
+    .overview-hero h2 {
+      margin: 0;
+      color: #0f172a;
+      font-size: 24px;
+      line-height: 1.2;
+    }
+    .overview-hero p {
+      max-width: 760px;
+      margin: 8px 0 0;
+      color: #475569;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .overview-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .overview-action {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border-color: #d6e2e5;
+      background: rgba(255, 255, 255, 0.92);
+      color: #0f172a;
+      font-weight: 700;
+    }
+    .overview-action.primary {
+      color: #fff;
+      border-color: var(--teal);
+      background: #0f8f8a;
+    }
+    .overview-kpis {
+      margin-bottom: 0;
+    }
+    .overview-kpis .metrics {
+      margin-bottom: 0;
+    }
+    .overview-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+      gap: 14px;
+      align-items: start;
+    }
+    .overview-stack {
+      display: grid;
+      gap: 14px;
+    }
+    .overview-insights {
+      display: grid;
+      gap: 14px;
+    }
+    .overview-card {
+      min-width: 0;
+      padding: 14px 16px;
+      border: 1px solid #e3e9ec;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045);
+    }
+    .overview-card-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .overview-card-head h2,
+    .overview-card-head h3 {
+      margin: 0;
+      color: #111827;
+      font-size: 16px;
+    }
+    .overview-card-head span {
+      color: #6b7280;
+      font-size: 12px;
+      text-align: right;
+    }
+    .overview-bar-list,
+    .overview-source-list,
+    .overview-watch-list {
+      display: grid;
+      gap: 10px;
+    }
+    .overview-bar-row {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr) 42px;
+      gap: 10px;
+      align-items: center;
+      color: #334155;
+      font-size: 13px;
+    }
+    .overview-bar-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 700;
+    }
+    .overview-bar-track {
+      height: 9px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #edf3f4;
+    }
+    .overview-bar-fill {
+      display: block;
+      height: 100%;
+      min-width: 3px;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #0f8f8a, #2557a7);
+    }
+    .overview-bar-count {
+      color: #64748b;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+    .overview-source-row,
+    .overview-watch-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 42px;
+      padding: 9px 10px;
+      border: 1px solid #edf1f2;
+      border-radius: 8px;
+      background: #fbfcfc;
+    }
+    .overview-source-row strong,
+    .overview-watch-row strong {
+      display: block;
+      color: #111827;
+      font-size: 13px;
+    }
+    .overview-source-row span,
+    .overview-watch-row span {
+      display: block;
+      margin-top: 2px;
+      color: #64748b;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .overview-status-pill {
+      min-width: 52px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      color: var(--teal);
+      background: var(--teal-soft);
+      font-size: 12px;
+      font-weight: 760;
+      text-align: center;
+    }
+    .overview-status-pill.warn {
+      color: var(--amber);
+      background: var(--amber-soft);
+    }
+    .overview-watch-total {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .overview-watch-total span {
+      min-height: 52px;
+      padding: 9px 10px;
+      border: 1px solid #edf1f2;
+      border-radius: 8px;
+      background: #fbfcfc;
+      color: #64748b;
+      font-size: 12px;
+    }
+    .overview-watch-total b {
+      display: block;
+      color: #0f172a;
+      font-size: 22px;
+      line-height: 1.05;
+      font-variant-numeric: tabular-nums;
+    }
+    .overview-card .empty {
+      min-height: 68px;
+      display: grid;
+      place-items: center;
+      border: 1px dashed #d8e1e4;
+      border-radius: 8px;
+      color: #64748b;
+      background: #fbfcfc;
+      font-size: 13px;
+    }
+    html[data-theme="night"] .overview-hero,
+    html[data-theme="night"] .overview-card,
+    html[data-theme="night"] .overview-source-row,
+    html[data-theme="night"] .overview-watch-row,
+    html[data-theme="night"] .overview-watch-total span,
+    html[data-theme="night"] .overview-card .empty,
+    html[data-theme="night"] .overview-action {
+      border-color: var(--line);
+      background: var(--panel);
+    }
+    html[data-theme="night"] .overview-hero h2,
+    html[data-theme="night"] .overview-card-head h2,
+    html[data-theme="night"] .overview-card-head h3,
+    html[data-theme="night"] .overview-source-row strong,
+    html[data-theme="night"] .overview-watch-row strong,
+    html[data-theme="night"] .overview-watch-total b {
+      color: var(--ink);
+    }
+    html[data-theme="night"] .overview-hero p,
+    html[data-theme="night"] .overview-bar-row,
+    html[data-theme="night"] .overview-source-row span,
+    html[data-theme="night"] .overview-watch-row span {
+      color: var(--muted);
+    }
     .metrics .metric {
       height: 72px;
       min-height: 72px;
@@ -2901,6 +3157,12 @@ DASHBOARD_HTML = r"""<!doctype html>
       .llm-panel pre {
         max-width: calc(100% - 90px);
       }
+      .overview-grid {
+        grid-template-columns: 1fr;
+      }
+      .overview-insights {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
       .alerts-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -2910,12 +3172,15 @@ DASHBOARD_HTML = r"""<!doctype html>
       .runtime-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .cluster-strip { grid-template-columns: repeat(2, minmax(210px, 1fr)); }
       .sources-grid { grid-template-columns: 1fr; }
+      .overview-hero { grid-template-columns: 1fr; align-items: start; }
+      .overview-actions { justify-content: flex-start; }
+      .overview-insights { grid-template-columns: 1fr; }
       .dashboard-layout { grid-template-columns: 1fr; }
       .rail { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .alerts-grid, .drawer-judgement { grid-template-columns: 1fr; }
     }
     @media (max-width: 760px) {
-      .topbar-inner, .brand-row, .command, .metrics, .cluster-strip, .rail, .config-grid, .watch-target-row {
+      .topbar-inner, .brand-row, .command, .metrics, .cluster-strip, .rail, .config-grid, .watch-target-row, .overview-hero, .overview-watch-total {
         grid-template-columns: 1fr;
       }
       .watch-history-row {
@@ -2934,6 +3199,10 @@ DASHBOARD_HTML = r"""<!doctype html>
       .top-actions, .feed-actions { justify-content: flex-start; }
       .feed-grid { grid-template-columns: 1fr; }
       .command, .feed-head { padding: 12px; }
+      .overview-hero { padding: 14px; }
+      .overview-hero h2 { font-size: 21px; }
+      .overview-action { width: 100%; justify-content: center; }
+      .overview-bar-row { grid-template-columns: 84px minmax(0, 1fr) 36px; }
       .metric { min-height: 84px; }
       .runtime-grid { grid-template-columns: 1fr; }
       .alerts-grid { grid-template-columns: 1fr; }
@@ -3015,13 +3284,70 @@ DASHBOARD_HTML = r"""<!doctype html>
           <button id="clearBtn">清空</button>
         </section>
 
-        <section class="metrics" id="stats" data-views="overview"></section>
-        <section class="runtime-panel" id="runtimePanel" data-views="overview">
-          <div class="runtime-head">
-            <h2>运行状态</h2>
-            <span class="meta" id="runtimeUpdated">等待状态</span>
+        <section class="overview-shell" data-views="overview">
+          <div class="overview-hero" id="overviewHero">
+            <div>
+              <span class="overview-kicker">今日总控台</span>
+              <h2>情报态势概览</h2>
+              <p id="overviewBrief">正在读取今天的情报状态、来源健康和观察雷达。</p>
+            </div>
+            <div class="overview-actions" aria-label="概览快捷入口">
+              <button class="overview-action primary" data-overview-go="today" type="button"><span data-icon="doc"></span>今日情报</button>
+              <button class="overview-action" data-overview-go="watch" type="button"><span data-icon="target"></span>观察雷达</button>
+            </div>
           </div>
-          <div class="runtime-grid" id="runtimeGrid"></div>
+          <section class="overview-kpis" id="overviewKpis" aria-label="总体指标">
+            <div class="metrics" id="stats"></div>
+          </section>
+          <div class="overview-grid">
+            <div class="overview-stack">
+              <section class="runtime-panel" id="runtimePanel">
+                <div class="runtime-head">
+                  <h2>运行状态</h2>
+                  <span class="meta" id="runtimeUpdated">等待状态</span>
+                </div>
+                <div class="runtime-grid" id="runtimeGrid"></div>
+              </section>
+              <section class="llm-panel overview-summary" id="llmPanel">
+                <div class="llm-head">
+                  <h2>今日摘要</h2>
+                  <span id="llmTime"></span>
+                </div>
+                <pre id="llmSummary"></pre>
+                <div class="sparkline" aria-hidden="true"></div>
+              </section>
+              <section class="alerts-panel overview-signals" id="alertsPanel">
+                <div class="alerts-head">
+                  <h2>高价值信号</h2>
+                  <span id="alertsNote">规则筛选，模型判断</span>
+                </div>
+                <div class="alerts-grid" id="alerts"></div>
+              </section>
+            </div>
+            <div class="overview-insights" aria-label="可视化摘要">
+              <section class="overview-card" id="overviewCategoryMix">
+                <div class="overview-card-head">
+                  <h3>分类占比</h3>
+                  <span id="overviewCategoryNote">等待数据</span>
+                </div>
+                <div class="overview-bar-list" id="overviewCategoryBars"></div>
+              </section>
+              <section class="overview-card" id="overviewSourceHealth">
+                <div class="overview-card-head">
+                  <h3>来源健康</h3>
+                  <span id="overviewSourceNote">等待数据</span>
+                </div>
+                <div class="overview-source-list" id="overviewSourceRows"></div>
+              </section>
+              <section class="overview-card" id="overviewWatchBrief">
+                <div class="overview-card-head">
+                  <h3>观察雷达</h3>
+                  <span id="overviewWatchNote">等待数据</span>
+                </div>
+                <div id="overviewWatchSummary"></div>
+              </section>
+            </div>
+          </div>
         </section>
         <section class="progress-panel" id="progressPanel">
           <div class="progress-head">
@@ -3030,21 +3356,6 @@ DASHBOARD_HTML = r"""<!doctype html>
           </div>
           <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
           <div class="source-progress" id="sourceProgress"></div>
-        </section>
-        <section class="llm-panel" id="llmPanel" data-views="overview">
-          <div class="llm-head">
-            <h2>LLM 摘要</h2>
-            <span id="llmTime"></span>
-          </div>
-          <pre id="llmSummary"></pre>
-          <div class="sparkline" aria-hidden="true"></div>
-        </section>
-        <section class="alerts-panel" id="alertsPanel" data-views="overview">
-          <div class="alerts-head">
-            <h2>高价值信号</h2>
-            <span id="alertsNote">规则筛选，模型判断</span>
-          </div>
-          <div class="alerts-grid" id="alerts"></div>
         </section>
 
         <section class="watch-panel" id="watchPanel" data-views="watch">
@@ -3296,6 +3607,10 @@ DASHBOARD_HTML = r"""<!doctype html>
         metric("收藏", data.mark_counts?.favorites ?? 0, "较昨日 -", "star", "plum"),
         metric("LLM 摘要", llmState(run.llm_summary || ""), "状态就绪", "sparkles", "teal")
       ].join("");
+      renderOverviewBrief(data);
+      renderOverviewCategoryMix(data.category_counts || []);
+      renderOverviewSourceHealth(data.source_health || []);
+      renderOverviewWatchBrief(data);
       renderLlmSummary(run.llm_summary || "");
       renderRunProgress(data.progress || {});
       renderBucketTabs(data.bucket_counts || []);
@@ -3406,6 +3721,95 @@ DASHBOARD_HTML = r"""<!doctype html>
             <small>${esc(delta || "")}</small>
           </div>
         </div>
+      `;
+    }
+
+    function renderOverviewBrief(data) {
+      const run = data.run || {};
+      const total = Number(run.deduped_total || 0);
+      const clusters = Number(data.cluster_count || 0);
+      const sources = data.source_health || [];
+      const failed = sources.filter((row) => row.status !== "ok").length;
+      const radar = data.watch_radar || [];
+      const activeRadar = radar.filter((row) => row.status === "active").length;
+      const date = state.date || data.report_date || "今日";
+      const llm = llmState(run.llm_summary || "");
+      const sourceText = sources.length ? `来源 ${sources.length - failed}/${sources.length} 正常` : "暂无来源记录";
+      $("overviewBrief").textContent = `${date} 已整理 ${total} 条有效情报，聚合 ${clusters} 条事件主线，${sourceText}，观察雷达 ${activeRadar}/${radar.length} 个对象有动向，LLM 摘要${llm}。`;
+    }
+
+    function renderOverviewCategoryMix(counts) {
+      const rows = (counts || [])
+        .filter((row) => row.category)
+        .sort((a, b) => Number(b.count || 0) - Number(a.count || 0));
+      const total = rows.reduce((sum, row) => sum + Number(row.count || 0), 0);
+      $("overviewCategoryNote").textContent = total ? `${total} 条有效情报` : "暂无分类数据";
+      $("overviewCategoryBars").innerHTML = rows.length ? rows.map((row) => {
+        const count = Number(row.count || 0);
+        const pct = total ? Math.max(3, Math.round(count / total * 100)) : 0;
+        const label = labels[row.category] || row.category || "未分类";
+        return `
+          <div class="overview-bar-row">
+            <span class="overview-bar-label" title="${esc(label)}">${esc(label)}</span>
+            <span class="overview-bar-track" aria-label="${esc(label)} ${esc(count)} 条"><span class="overview-bar-fill" style="width: ${esc(pct)}%"></span></span>
+            <span class="overview-bar-count">${esc(count)}</span>
+          </div>
+        `;
+      }).join("") : "<div class='empty'>暂无分类数据</div>";
+    }
+
+    function renderOverviewSourceHealth(rows) {
+      const list = rows || [];
+      const failed = list.filter((row) => row.status !== "ok");
+      $("overviewSourceNote").textContent = list.length
+        ? `${list.length - failed.length}/${list.length} 正常`
+        : "暂无来源记录";
+      $("overviewSourceRows").innerHTML = list.length ? list.map((row) => {
+        const ok = row.status === "ok";
+        return `
+          <div class="overview-source-row">
+            <div>
+              <strong>${esc(sourceName(row.source))}</strong>
+              <span>${ok ? "抓取正常" : "需要检查"} · ${esc(row.count || 0)} 条</span>
+            </div>
+            <span class="overview-status-pill ${ok ? "" : "warn"}">${esc(ok ? "正常" : "异常")}</span>
+          </div>
+        `;
+      }).join("") : "<div class='empty'>暂无来源记录</div>";
+    }
+
+    function renderOverviewWatchBrief(data) {
+      const rows = data.watch_radar || [];
+      const activeRows = rows.filter((row) => row.status === "active");
+      $("overviewWatchNote").textContent = rows.length ? `${activeRows.length}/${rows.length} 有动向` : "暂无观察对象";
+      if (!rows.length) {
+        $("overviewWatchSummary").innerHTML = "<div class='empty'>暂无观察雷达数据</div>";
+        return;
+      }
+      const activeHtml = activeRows.slice(0, 3).map((row) => `
+        <div class="overview-watch-row">
+          <div>
+            <strong>${esc(row.name || row.target_id || "观察对象")}</strong>
+            <span>${esc(row.action || row.summary || "持续观察")} · 命中 ${esc(row.match_count || 0)} 条</span>
+          </div>
+          <span class="overview-status-pill">有动向</span>
+        </div>
+      `).join("");
+      const quietHtml = rows.filter((row) => row.status !== "active").slice(0, Math.max(0, 3 - activeRows.length)).map((row) => `
+        <div class="overview-watch-row">
+          <div>
+            <strong>${esc(row.name || row.target_id || "观察对象")}</strong>
+            <span>${esc(row.summary || "暂未命中值得提醒的变化")}</span>
+          </div>
+          <span class="overview-status-pill warn">观察中</span>
+        </div>
+      `).join("");
+      $("overviewWatchSummary").innerHTML = `
+        <div class="overview-watch-total">
+          <span><b>${esc(activeRows.length)}</b>有动向</span>
+          <span><b>${esc(rows.length - activeRows.length)}</b>观察中</span>
+        </div>
+        <div class="overview-watch-list">${activeHtml || quietHtml ? activeHtml + quietHtml : "<div class='empty'>暂无观察雷达数据</div>"}</div>
       `;
     }
 
@@ -3804,11 +4208,12 @@ DASHBOARD_HTML = r"""<!doctype html>
       if (state.date) params.set("date", state.date);
       const data = await api(`/api/alerts?${params}`);
       const alerts = data.alerts || [];
-      $("alertsPanel").classList.toggle("show", alerts.length > 0);
+      const visibleAlerts = alerts.slice(0, 6);
+      $("alertsPanel").classList.toggle("show", visibleAlerts.length > 0);
       $("alertsNote").textContent = alerts.length ? `${alerts.length} 条高价值信号` : "暂无需要提醒的信号";
       const alertsEl = $("alerts");
-      alertsEl.className = `alerts-grid count-${Math.min(alerts.length, 6)}`;
-      alertsEl.innerHTML = alerts.map((alert) => renderAlert(alert)).join("");
+      alertsEl.className = `alerts-grid count-${Math.min(visibleAlerts.length, 6)}`;
+      alertsEl.innerHTML = visibleAlerts.map((alert) => renderAlert(alert)).join("");
     }
 
     function renderAlert(alert) {
@@ -4269,6 +4674,10 @@ DASHBOARD_HTML = r"""<!doctype html>
     $("viewNav").addEventListener("click", (event) => {
       const button = event.target.closest("[data-view-nav]");
       if (button) setView(button.dataset.viewNav || "overview");
+    });
+    $("overviewHero").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-overview-go]");
+      if (button) setView(button.dataset.overviewGo || "overview");
     });
     $("runBtn").addEventListener("click", async () => {
       showToast("已开始更新情报，后台正在抓取和整理。", true);
