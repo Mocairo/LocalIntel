@@ -137,6 +137,27 @@ CREATE TABLE IF NOT EXISTS llm_alerts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_llm_alerts_date ON llm_alerts(report_date, confidence DESC, score DESC);
+
+CREATE TABLE IF NOT EXISTS watch_radar (
+    report_date TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    action TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    match_count INTEGER NOT NULL,
+    item_hash TEXT NOT NULL,
+    item_title TEXT NOT NULL,
+    source TEXT NOT NULL,
+    url TEXT NOT NULL,
+    score REAL NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (report_date, target_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_watch_radar_date_score ON watch_radar(report_date, score DESC);
 """
 
 ITEM_EXTRA_COLUMNS = {
@@ -603,6 +624,64 @@ def record_llm_alerts(path: Path, report_date: str, alerts: list[dict[str, objec
                     str(alert.get("source") or "")[:120],
                     str(alert.get("url") or ""),
                     float(alert.get("score") or 0),
+                    now,
+                ),
+            )
+
+
+def load_watch_radar(path: Path, report_date: str = "", limit: int = 6) -> list[dict[str, object]]:
+    init_db(path)
+    if not report_date:
+        report_date = latest_report_date(path)
+    if not report_date:
+        return []
+    with sqlite3.connect(path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT target_id, name, type, status, summary, action, confidence, match_count,
+                   item_hash, item_title, source, url, score
+            FROM watch_radar
+            WHERE report_date = ?
+            ORDER BY status = 'active' DESC, score DESC, match_count DESC, name
+            LIMIT ?
+            """,
+            (report_date, limit),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def record_watch_radar(path: Path, report_date: str, rows: list[dict[str, object]]) -> None:
+    init_db(path)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with sqlite3.connect(path) as conn:
+        conn.execute("DELETE FROM watch_radar WHERE report_date = ?", (report_date,))
+        for row in rows:
+            target_id = str(row.get("target_id") or "").strip()
+            if not target_id:
+                continue
+            conn.execute(
+                """
+                INSERT INTO watch_radar
+                    (report_date, target_id, name, type, status, summary, action, confidence,
+                     match_count, item_hash, item_title, source, url, score, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    report_date,
+                    target_id[:80],
+                    str(row.get("name") or "")[:120],
+                    str(row.get("type") or "topic")[:40],
+                    str(row.get("status") or "quiet")[:20],
+                    str(row.get("summary") or "")[:500],
+                    str(row.get("action") or "持续观察")[:20],
+                    float(row.get("confidence") or 0),
+                    int(row.get("match_count") or 0),
+                    str(row.get("item_hash") or ""),
+                    str(row.get("item_title") or "")[:300],
+                    str(row.get("source") or "")[:120],
+                    str(row.get("url") or ""),
+                    float(row.get("score") or 0),
                     now,
                 ),
             )

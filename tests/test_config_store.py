@@ -53,6 +53,13 @@ source_quality = 0.2
 personal_interest = 0.25
 popularity = 0.15
 source_bonus = 0.05
+
+[[watchlist]]
+id = "agent"
+name = "AI Agent"
+type = "topic"
+keywords = ["agent"]
+description = "跟踪智能体"
 """.strip()
         + "\n",
         encoding="utf-8",
@@ -70,6 +77,7 @@ def test_update_config_normalizes_values_and_ignores_unknown_keys(tmp_path: Path
             "app": {"days_back": "0", "unknown": "value"},
             "github": {"limit": "12", "trending_since": "yearly"},
             "llm": {"max_items": "40", "max_tokens": "8000"},
+            "interests": {"priority_topics": ["AI"]},
         },
     )
 
@@ -79,3 +87,4 @@ def test_update_config_normalizes_values_and_ignores_unknown_keys(tmp_path: Path
     assert settings.section("github")["trending_since"] == "daily"
     assert settings.section("llm")["max_items"] == 40
     assert settings.section("llm")["max_tokens"] == 8000
+    assert "watchlist" in env_path.with_name("interests.toml").read_text(encoding="utf-8")

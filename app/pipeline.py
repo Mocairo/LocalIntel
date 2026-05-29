@@ -20,6 +20,7 @@ from app.sources import fetch_all
 from app.summarizer import build_llm_summary
 from app.translator import translate_world_news
 from app.triage import assign_buckets
+from app.watchlist import build_watch_radar
 from app.weekly import build_weekly_report
 
 
@@ -78,8 +79,9 @@ def run_pipeline(
     stats["inserted"] = saved
     record_run(db_path, day.isoformat(), items, stats, llm_summary)
     record_clusters(db_path, day.isoformat(), clusters)
-    emit_progress(progress, "alerts", "正在判断高价值信号", 96)
+    emit_progress(progress, "alerts", "正在判断高价值信号和观察雷达", 96)
     build_llm_alerts(settings, items, day.isoformat())
+    build_watch_radar(settings, items, day.isoformat())
     emit_progress(progress, "report", "正在生成报告文件", 98)
     write_run_log(settings, day.isoformat(), stats, llm_summary)
     md_path, html_path = write_reports(settings.app_path("report_dir"), day.isoformat(), items, llm_summary, stats)
@@ -130,6 +132,8 @@ def main() -> None:
     stats["inserted"] = saved
     record_run(db_path, day.isoformat(), items, stats, llm_summary)
     record_clusters(db_path, day.isoformat(), clusters)
+    build_llm_alerts(settings, items, day.isoformat())
+    build_watch_radar(settings, items, day.isoformat())
     write_run_log(settings, day.isoformat(), stats, llm_summary)
     md_path, html_path = write_reports(settings.app_path("report_dir"), day.isoformat(), items, llm_summary, stats)
     weekly = build_weekly_report(db_path, settings.app_path("report_dir"), day.isoformat())

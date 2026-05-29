@@ -171,9 +171,26 @@ OPENAI_BASE_URL=备用 OpenAI-compatible base_url
 - 推荐理由、新鲜度、影响范围、风险提示
 - 收藏、忽略、稍后看、归档
 - 关注主题和异常趋势提醒
+- 观察雷达：长期关注对象的命中、异动判断和建议动作
 - 来源健康状态、近期趋势、本周沉淀
 - 运行状态：仪表盘、调度器、上次运行、下次运行和来源健康摘要
 - 配置中心：来源、偏好、权重、翻译和 LLM 选项
+
+## 观察清单
+
+观察雷达从 `interests.toml` 的 `[[watchlist]]` 读取对象。每次更新情报后，系统会先用本地规则匹配当天条目，再让 LLM 判断是否有明显动向；结果写入 SQLite，页面刷新只读缓存。
+
+示例：
+
+```toml
+[[watchlist]]
+id = "ai-agent"
+name = "AI Agent"
+type = "topic"
+keywords = ["agent", "AI agent", "coding agent"]
+description = "跟踪智能体、编程代理和自动化开发工具。"
+enabled = true
+```
 
 ## 常用脚本
 

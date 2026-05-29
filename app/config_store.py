@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -111,6 +112,13 @@ def normalize_value(key: str, value: Any) -> Any:
 def write_toml(path: Path, values: dict[str, Any]) -> None:
     lines: list[str] = []
     for section_name, section in values.items():
+        if isinstance(section, list) and all(isinstance(row, dict) for row in section):
+            for row in section:
+                lines.append(f"[[{section_name}]]")
+                for key, value in row.items():
+                    lines.append(f"{key} = {format_toml_value(value)}")
+                lines.append("")
+            continue
         if not isinstance(section, dict):
             continue
         lines.append(f"[{section_name}]")
@@ -139,6 +147,7 @@ def format_toml_value(value: Any) -> str:
 
 def update_interests(path: Path, payload: dict[str, Any]) -> None:
     preferences = load_preferences(path)
+    existing = read_toml(path)
     weights = dict(preferences.weights)
     incoming_weights = payload.get("weights", {})
     if isinstance(incoming_weights, dict):
@@ -159,7 +168,19 @@ def update_interests(path: Path, payload: dict[str, Any]) -> None:
         },
         "weights": weights,
     }
+    if isinstance(existing.get("watchlist"), list):
+        values["watchlist"] = existing["watchlist"]
     write_toml(path, values)
+
+
+def read_toml(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        with path.open("rb") as fh:
+            return tomllib.load(fh)
+    except tomllib.TOMLDecodeError:
+        return {}
 
 
 def list_value(value: Any, fallback: list[str]) -> list[str]:

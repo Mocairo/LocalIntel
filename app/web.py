@@ -18,6 +18,7 @@ from app.db import (
     list_report_dates,
     load_dashboard_clusters,
     load_dashboard_items,
+    load_watch_radar,
     load_item_detail,
     mark_item,
     record_user_event,
@@ -102,6 +103,10 @@ class LocalIntelHandler(BaseHTTPRequestHandler):
             params = parse_qs(parsed.query)
             self.send_json({"alerts": dashboard_alerts(self.state.db_path, first(params, "date"))})
             return
+        if parsed.path == "/api/watch-radar":
+            params = parse_qs(parsed.query)
+            self.send_json({"watch_radar": load_watch_radar(self.state.db_path, first(params, "date"))})
+            return
         if parsed.path == "/api/weekly":
             params = parse_qs(parsed.query)
             weekly = build_weekly_report(
@@ -113,9 +118,14 @@ class LocalIntelHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/stats":
             params = parse_qs(parsed.query)
+            report_date = first(params, "date")
             self.send_json(
-                dashboard_stats(self.state.db_path, first(params, "date"))
-                | {"running": self.state.running, "progress": self.state.progress}
+                dashboard_stats(self.state.db_path, report_date)
+                | {
+                    "running": self.state.running,
+                    "progress": self.state.progress,
+                    "watch_radar": load_watch_radar(self.state.db_path, report_date),
+                }
             )
             return
         if parsed.path == "/api/config":
@@ -2395,6 +2405,70 @@ DASHBOARD_HTML = r"""<!doctype html>
     .alerts-grid.count-4 {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+    .watch-panel {
+      display: none;
+      padding: 14px 16px;
+      border: 1px solid #e3e9ec;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045);
+    }
+    .watch-panel.show {
+      display: block;
+    }
+    .watch-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .watch-head h2 {
+      margin: 0;
+      color: #111827;
+      font-size: 17px;
+    }
+    .watch-head span {
+      color: #6b7280;
+      font-size: 12px;
+    }
+    .watch-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .watch-grid.count-1,
+    .watch-grid.count-2,
+    .watch-grid.count-4 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .watch-card {
+      min-height: 112px;
+      padding: 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #fbfcfc;
+    }
+    .watch-card strong {
+      display: block;
+      margin-bottom: 6px;
+      color: #0f766e;
+      font-size: 13px;
+    }
+    .watch-card a {
+      display: block;
+      margin: 4px 0 6px;
+      color: #111827;
+      text-decoration: none;
+      font-weight: 750;
+      line-height: 1.35;
+    }
+    .watch-card p {
+      margin: 0;
+      color: #374151;
+      font-size: 12px;
+      line-height: 1.5;
+    }
     .alert-card {
       min-height: 96px;
       padding: 12px;
@@ -2675,6 +2749,14 @@ DASHBOARD_HTML = r"""<!doctype html>
           <div class="alerts-grid" id="alerts"></div>
         </section>
 
+        <section class="watch-panel" id="watchPanel">
+          <div class="watch-head">
+            <h2>观察雷达</h2>
+            <span id="watchNote">长期关注对象的动态</span>
+          </div>
+          <div class="watch-grid" id="watchRadar"></div>
+        </section>
+
         <section class="mainline-block">
           <div class="section-head">
             <h2>今日主线</h2>
@@ -2891,6 +2973,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       renderReadTabs(data.read_status_counts || []);
       renderCategories(data.category_counts || []);
       renderHealth(data.source_health || []);
+      renderWatchRadar(data);
     }
 
     async function loadRuntimeStatus() {
@@ -3124,6 +3207,22 @@ DASHBOARD_HTML = r"""<!doctype html>
           <span class="health-count">${esc(row.count)}</span>
         </div>
       `).join("") : "<div class='empty'>暂无状态</div>";
+    }
+
+    function renderWatchRadar(data) {
+      const rows = data.watch_radar || [];
+      $("watchPanel").classList.toggle("show", rows.length > 0);
+      $("watchNote").textContent = rows.length ? `${rows.length} 个观察对象` : "长期关注对象的动态";
+      const grid = $("watchRadar");
+      grid.className = `watch-grid count-${Math.min(rows.length, 6)}`;
+      grid.innerHTML = rows.length ? rows.map((row) => `
+        <article class="watch-card">
+          <strong>${esc(row.status === "active" ? "有变化" : "暂无动向")}</strong>
+          <a href="${esc(row.url || "#")}" target="_blank" rel="noreferrer" data-open="${esc(row.item_hash || "")}">${esc(row.name || row.target_id || "观察对象")}</a>
+          <p>${esc(row.summary || "")}</p>
+          <p>${esc(row.action || "持续观察")} · 命中 ${esc(row.match_count || 0)} 条 · 置信度 ${Math.round(Number(row.confidence || 0) * 100)}%</p>
+        </article>
+      `).join("") : "";
     }
 
     function sourceName(source) {
