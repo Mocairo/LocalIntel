@@ -32,7 +32,7 @@ def build_llm_summary(settings: Settings, items: list[Item], report_date: str = 
     if model not in model_candidates:
         model_candidates.insert(0, model)
     max_items = int(section.get("max_items", 40))
-    max_tokens = int(section.get("max_tokens", 4000))
+    max_tokens = int(section.get("max_tokens", 8000))
     timeout_seconds = int(section.get("timeout_seconds", 90))
     temperature = float(section.get("temperature", 1.0))
     top_p = float(section.get("top_p", 0.95))

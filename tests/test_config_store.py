@@ -25,6 +25,12 @@ enabled = true
 limit = 10
 trending_since = "daily"
 trending_languages = [""]
+
+[llm]
+enabled = true
+model = "mimo-v2.5"
+max_items = 3
+max_tokens = 4000
 """.strip()
         + "\n",
         encoding="utf-8",
@@ -63,6 +69,7 @@ def test_update_config_normalizes_values_and_ignores_unknown_keys(tmp_path: Path
         {
             "app": {"days_back": "0", "unknown": "value"},
             "github": {"limit": "12", "trending_since": "yearly"},
+            "llm": {"max_items": "40", "max_tokens": "8000"},
         },
     )
 
@@ -70,3 +77,5 @@ def test_update_config_normalizes_values_and_ignores_unknown_keys(tmp_path: Path
     assert "unknown" not in settings.section("app")
     assert settings.section("github")["limit"] == 12
     assert settings.section("github")["trending_since"] == "daily"
+    assert settings.section("llm")["max_items"] == 40
+    assert settings.section("llm")["max_tokens"] == 8000

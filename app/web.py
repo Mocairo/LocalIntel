@@ -2747,6 +2747,8 @@ DASHBOARD_HTML = r"""<!doctype html>
         <div class="field"><label>抓取最近几天</label><input id="cfgDaysBack" type="number" min="1"></div>
         <div class="field"><label>GitHub Trending 周期</label><select id="cfgTrendingSince"><option value="daily">daily</option><option value="weekly">weekly</option><option value="monthly">monthly</option></select></div>
         <div class="field"><label>全球时事翻译 API</label><select id="cfgTranslationProvider"><option value="public">public</option><option value="mimo">mimo</option></select></div>
+        <div class="field"><label>LLM 分析条目数</label><input id="cfgLlmMaxItems" type="number" min="1" max="100"></div>
+        <div class="field"><label>LLM 输出 Token 上限</label><input id="cfgLlmMaxTokens" type="number" min="1000" step="1000"></div>
         <div class="field"><label>GitHub Trending 语言</label><textarea id="cfgTrendingLanguages"></textarea></div>
         <div class="field"><label>arXiv 分类</label><textarea id="cfgArxivCategories"></textarea></div>
         <div class="field"><label>arXiv 关键词</label><textarea id="cfgArxivKeywords"></textarea></div>
@@ -3434,6 +3436,8 @@ DASHBOARD_HTML = r"""<!doctype html>
       $("cfgLlmEnabled").checked = !!config.llm?.enabled;
       $("cfgTranslationEnabled").checked = !!config.translation?.enabled;
       $("cfgTranslationProvider").value = config.translation?.provider || "public";
+      $("cfgLlmMaxItems").value = config.llm?.max_items || 40;
+      $("cfgLlmMaxTokens").value = config.llm?.max_tokens || 8000;
       $("cfgTrendingSince").value = config.github?.trending_since || "daily";
       $("cfgTrendingLanguages").value = joinLines(config.github?.trending_languages || [""]);
       $("cfgArxivCategories").value = joinLines(config.arxiv?.categories || []);
@@ -3477,7 +3481,9 @@ DASHBOARD_HTML = r"""<!doctype html>
           feeds: parseFeeds($("cfgRssFeeds").value)
         },
         llm: {
-          enabled: $("cfgLlmEnabled").checked
+          enabled: $("cfgLlmEnabled").checked,
+          max_items: Number($("cfgLlmMaxItems").value || 40),
+          max_tokens: Number($("cfgLlmMaxTokens").value || 8000)
         },
         translation: {
           enabled: $("cfgTranslationEnabled").checked,

@@ -39,7 +39,8 @@ def read_ui_config(settings: Settings) -> dict[str, object]:
         "llm": {
             "enabled": settings.section("llm").get("enabled", True),
             "model": settings.section("llm").get("model", "mimo-v2.5"),
-            "max_items": settings.section("llm").get("max_items", 3),
+            "max_items": settings.section("llm").get("max_items", 40),
+            "max_tokens": settings.section("llm").get("max_tokens", 8000),
         },
         "translation": {
             "enabled": settings.section("translation").get("enabled", True),
@@ -85,12 +86,17 @@ def allowed_keys(section: str) -> set[str]:
         "arxiv": {"enabled", "categories", "keywords"},
         "gdelt": {"enabled", "queries", "world_days_back", "theme_queries_per_run", "theme_pool"},
         "rss": {"enabled", "feeds"},
-        "llm": {"enabled", "model", "max_items"},
+        "llm": {"enabled", "model", "max_items", "max_tokens"},
         "translation": {"enabled", "provider", "model", "max_items"},
     }.get(section, set())
 
 
 def normalize_value(key: str, value: Any) -> Any:
+    if key == "max_tokens":
+        try:
+            return max(1000, int(value))
+        except (TypeError, ValueError):
+            return 8000
     if key in {"days_back", "world_days_back", "theme_queries_per_run", "limit", "max_items"}:
         try:
             return max(1, int(value))
