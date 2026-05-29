@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.config_store import update_config
+from app.config import load_settings
+from app.config_store import read_ui_config, update_config
 
 
 def write_base_files(tmp_path: Path) -> tuple[Path, Path]:
@@ -88,3 +89,60 @@ def test_update_config_normalizes_values_and_ignores_unknown_keys(tmp_path: Path
     assert settings.section("llm")["max_items"] == 40
     assert settings.section("llm")["max_tokens"] == 8000
     assert "watchlist" in env_path.with_name("interests.toml").read_text(encoding="utf-8")
+
+
+def test_read_ui_config_includes_watchlist(tmp_path: Path) -> None:
+    config_path, env_path = write_base_files(tmp_path)
+    settings = load_settings(config_path, env_path)
+
+    ui_config = read_ui_config(settings)
+
+    assert ui_config["interests"]["watchlist"] == [
+        {
+            "id": "agent",
+            "name": "AI Agent",
+            "type": "topic",
+            "enabled": True,
+            "keywords": ["agent"],
+            "description": "跟踪智能体",
+        }
+    ]
+
+
+def test_update_config_saves_watchlist_and_filters_invalid_rows(tmp_path: Path) -> None:
+    config_path, env_path = write_base_files(tmp_path)
+
+    settings = update_config(
+        config_path,
+        env_path,
+        {
+            "interests": {
+                "priority_topics": ["AI"],
+                "watchlist": [
+                    {
+                        "id": "",
+                        "name": "Model Context",
+                        "type": "",
+                        "enabled": False,
+                        "keywords": ["context window", "token"],
+                        "description": "关注长上下文和 token 成本",
+                    },
+                    {"id": "empty-keywords", "name": "空关键词", "keywords": []},
+                    {"id": "empty-name", "name": "", "keywords": ["ai"]},
+                ],
+            }
+        },
+    )
+
+    ui_config = read_ui_config(settings)
+
+    assert ui_config["interests"]["watchlist"] == [
+            {
+                "id": "model-context",
+                "name": "Model Context",
+                "type": "topic",
+                "enabled": False,
+                "keywords": ["context window", "token"],
+            "description": "关注长上下文和 token 成本",
+        }
+    ]

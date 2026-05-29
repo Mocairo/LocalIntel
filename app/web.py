@@ -1263,6 +1263,73 @@ DASHBOARD_HTML = r"""<!doctype html>
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
     }
+    .config-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .config-section-head h3 {
+      margin: 0;
+      font-size: 15px;
+    }
+    .watchlist-editor {
+      display: grid;
+      gap: 10px;
+    }
+    .watch-target-row {
+      display: grid;
+      grid-template-columns: 72px minmax(0, 1fr) 118px 42px;
+      gap: 8px;
+      align-items: end;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+    .watch-target-keywords {
+      grid-column: 1 / span 2;
+    }
+    .watch-target-description {
+      grid-column: 3 / span 2;
+    }
+    .watch-target-enabled {
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .watch-target-enabled input {
+      width: auto;
+      height: auto;
+      margin: 0;
+    }
+    .watch-target-row textarea {
+      min-height: 36px;
+      height: 36px;
+      resize: vertical;
+    }
+    .watch-target-remove {
+      width: 36px;
+      min-width: 36px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--red);
+    }
+    .watch-target-remove span[data-icon], .watch-target-remove svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
     .field {
       display: grid;
       gap: 6px;
@@ -2638,8 +2705,14 @@ DASHBOARD_HTML = r"""<!doctype html>
       .alerts-grid, .drawer-judgement { grid-template-columns: 1fr; }
     }
     @media (max-width: 760px) {
-      .topbar-inner, .brand-row, .command, .metrics, .cluster-strip, .rail, .config-grid {
+      .topbar-inner, .brand-row, .command, .metrics, .cluster-strip, .rail, .config-grid, .watch-target-row {
         grid-template-columns: 1fr;
+      }
+      .watch-target-keywords, .watch-target-description {
+        grid-column: auto;
+      }
+      .watch-target-remove {
+        justify-self: end;
       }
       .brand-row .subtitle { margin-left: 0; }
       .top-actions, .feed-actions { justify-content: flex-start; }
@@ -2824,6 +2897,13 @@ DASHBOARD_HTML = r"""<!doctype html>
           <button data-theme="compact" type="button">紧凑</button>
         </div>
       </div>
+      <div class="drawer-section">
+        <div class="config-section-head">
+          <h3>观察清单</h3>
+          <button id="addWatchTargetBtn" class="soft icon-action" type="button"><span data-icon="target"></span>新增观察对象</button>
+        </div>
+        <div id="watchlistEditor" class="watchlist-editor"></div>
+      </div>
       <div class="config-grid">
         <div class="field"><label>每天运行时间</label><input id="cfgDailyTime" placeholder="08:30"></div>
         <div class="field"><label>抓取最近几天</label><input id="cfgDaysBack" type="number" min="1"></div>
@@ -2907,7 +2987,8 @@ DASHBOARD_HTML = r"""<!doctype html>
       settings: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v2"></path><path d="M12 19v2"></path><path d="M4.2 7.5 6 8.5"></path><path d="m18 15.5 1.8 1"></path><path d="m4.2 16.5 1.8-1"></path><path d="m18 8.5 1.8-1"></path></svg>',
       sparkles: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"></path></svg>',
       star: '<svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z"></path></svg>',
-      target: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3"></path><path d="M12 19v3"></path><path d="M2 12h3"></path><path d="M19 12h3"></path></svg>'
+      target: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3"></path><path d="M12 19v3"></path><path d="M2 12h3"></path><path d="M19 12h3"></path></svg>',
+      trash: '<svg viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M6 6l1 15h10l1-15"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>'
     };
 
     function iconSvg(name) {
@@ -3547,6 +3628,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       $("cfgBlockedKeywords").value = joinLines(config.interests?.blocked_keywords || []);
       $("cfgPreferredDomains").value = joinLines(config.interests?.preferred_domains || []);
       $("cfgBlockedDomains").value = joinLines(config.interests?.blocked_domains || []);
+      renderWatchlistEditor(config.interests?.watchlist || []);
       const weights = config.interests?.weights || {};
       $("cfgWeightFreshness").value = weights.freshness ?? 0.35;
       $("cfgWeightSource").value = weights.source_quality ?? 0.2;
@@ -3593,6 +3675,7 @@ DASHBOARD_HTML = r"""<!doctype html>
           blocked_keywords: splitLines($("cfgBlockedKeywords").value),
           preferred_domains: splitLines($("cfgPreferredDomains").value),
           blocked_domains: splitLines($("cfgBlockedDomains").value),
+          watchlist: readWatchlistEditor(),
           weights: {
             freshness: Number($("cfgWeightFreshness").value || 0.35),
             source_quality: Number($("cfgWeightSource").value || 0.2),
@@ -3620,6 +3703,68 @@ DASHBOARD_HTML = r"""<!doctype html>
         const parts = line.split("|").map((part) => part.trim());
         return { name: parts[0] || "", url: parts[1] || "", category: parts[2] || "general" };
       }).filter((feed) => feed.name && feed.url);
+    }
+
+    function renderWatchlistEditor(rows) {
+      const editor = $("watchlistEditor");
+      editor.innerHTML = "";
+      const targets = Array.isArray(rows) ? rows : [];
+      if (!targets.length) {
+        addWatchTarget({ enabled: true, type: "topic" });
+        return;
+      }
+      targets.forEach((target) => addWatchTarget(target));
+    }
+
+    function addWatchTarget(target = {}) {
+      const editor = $("watchlistEditor");
+      const row = document.createElement("div");
+      row.className = "watch-target-row";
+      row.dataset.watchId = target.id || "";
+      row.innerHTML = `
+        <label class="watch-target-enabled"><input data-watch-field="enabled" type="checkbox">启用</label>
+        <div class="field"><label>名称</label><input data-watch-field="name" placeholder="AI Agent"></div>
+        <div class="field">
+          <label>类型</label>
+          <select data-watch-field="type">
+            <option value="topic">主题</option>
+            <option value="project">项目</option>
+            <option value="company">公司</option>
+            <option value="person">人物</option>
+            <option value="policy">政策</option>
+          </select>
+        </div>
+        <div class="field watch-target-keywords"><label>关键词</label><textarea data-watch-field="keywords" placeholder="agent, workflow"></textarea></div>
+        <div class="field watch-target-description"><label>描述</label><textarea data-watch-field="description" placeholder="关注范围"></textarea></div>
+        <button class="watch-target-remove" data-watch-remove type="button" title="删除观察对象" aria-label="删除观察对象"><span data-icon="trash"></span></button>
+      `;
+      editor.appendChild(row);
+      row.querySelector('[data-watch-field="enabled"]').checked = target.enabled !== false;
+      row.querySelector('[data-watch-field="name"]').value = target.name || "";
+      row.querySelector('[data-watch-field="keywords"]').value = joinLines(target.keywords || []);
+      row.querySelector('[data-watch-field="description"]').value = target.description || "";
+      setWatchTargetType(row.querySelector('[data-watch-field="type"]'), target.type || "topic");
+      row.querySelector("[data-watch-remove]").addEventListener("click", () => row.remove());
+      hydrateIcons(row);
+    }
+
+    function setWatchTargetType(select, value) {
+      const next = value || "topic";
+      if (![...select.options].some((option) => option.value === next)) {
+        select.append(new Option(next, next));
+      }
+      select.value = next;
+    }
+
+    function readWatchlistEditor() {
+      return [...$("watchlistEditor").querySelectorAll(".watch-target-row")].map((row) => ({
+        id: row.dataset.watchId || "",
+        name: row.querySelector('[data-watch-field="name"]').value.trim(),
+        type: row.querySelector('[data-watch-field="type"]').value || "topic",
+        enabled: row.querySelector('[data-watch-field="enabled"]').checked,
+        keywords: splitLines(row.querySelector('[data-watch-field="keywords"]').value),
+        description: row.querySelector('[data-watch-field="description"]').value.trim()
+      })).filter((target) => target.name && target.keywords.length);
     }
 
     function loadTheme() {
@@ -3720,6 +3865,7 @@ DASHBOARD_HTML = r"""<!doctype html>
     $("closeDetailBtn").addEventListener("click", closeDrawers);
     $("drawerBackdrop").addEventListener("click", closeDrawers);
     $("saveConfigBtn").addEventListener("click", saveConfig);
+    $("addWatchTargetBtn").addEventListener("click", () => addWatchTarget({ enabled: true, type: "topic" }));
     $("themeSwitch").addEventListener("click", (event) => {
       const button = event.target.closest("button[data-theme]");
       if (!button) return;

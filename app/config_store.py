@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import re
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -10,6 +12,7 @@ from app.preferences import load_preferences
 
 def read_ui_config(settings: Settings) -> dict[str, object]:
     preferences = load_preferences(settings.app_path("interests_file"))
+    interests_data = read_toml(settings.app_path("interests_file"))
     return {
         "app": {
             "daily_time": settings.section("app").get("daily_time", "08:30"),
@@ -55,6 +58,7 @@ def read_ui_config(settings: Settings) -> dict[str, object]:
             "preferred_domains": preferences.preferred_domains,
             "blocked_domains": preferences.blocked_domains,
             "weights": preferences.weights,
+            "watchlist": normalize_watchlist(interests_data.get("watchlist")),
         },
     }
 
@@ -168,7 +172,9 @@ def update_interests(path: Path, payload: dict[str, Any]) -> None:
         },
         "weights": weights,
     }
-    if isinstance(existing.get("watchlist"), list):
+    if "watchlist" in payload:
+        values["watchlist"] = normalize_watchlist(payload.get("watchlist"))
+    elif isinstance(existing.get("watchlist"), list):
         values["watchlist"] = existing["watchlist"]
     write_toml(path, values)
 
@@ -190,3 +196,44 @@ def list_value(value: Any, fallback: list[str]) -> list[str]:
         rows = [row.strip() for row in value.replace(",", "\n").splitlines()]
         return [row for row in rows if row]
     return fallback
+
+
+def normalize_watchlist(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    used_ids: set[str] = set()
+    for raw in value:
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "").strip()
+        keywords = list_value(raw.get("keywords"), [])
+        if not name or not keywords:
+            continue
+        row_id = slugify_watch_id(str(raw.get("id") or name), used_ids, name)
+        row_type = str(raw.get("type") or "topic").strip() or "topic"
+        rows.append(
+            {
+                "id": row_id,
+                "name": name,
+                "type": row_type,
+                "enabled": bool(raw.get("enabled", True)),
+                "keywords": keywords,
+                "description": str(raw.get("description") or "").strip(),
+            }
+        )
+    return rows
+
+
+def slugify_watch_id(value: str, used_ids: set[str], fallback: str = "") -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    if not slug:
+        digest_source = fallback or value or "watch"
+        slug = "watch-" + hashlib.sha1(digest_source.encode("utf-8")).hexdigest()[:8]
+    candidate = slug
+    index = 2
+    while candidate in used_ids:
+        candidate = f"{slug}-{index}"
+        index += 1
+    used_ids.add(candidate)
+    return candidate

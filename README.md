@@ -180,6 +180,8 @@ OPENAI_BASE_URL=备用 OpenAI-compatible base_url
 
 观察雷达从 `interests.toml` 的 `[[watchlist]]` 读取对象。每次更新情报后，系统会先用本地规则匹配当天条目，再让 LLM 判断是否有明显动向；结果写入 SQLite，页面刷新只读缓存。
 
+可以在网页右上角“配置”里直接新增、编辑、删除和启用/停用观察对象。保存后会写回 `interests.toml`，下一次“更新情报”时生效。
+
 示例：
 
 ```toml
