@@ -385,7 +385,12 @@ def fetch_arxiv(section: dict[str, Any], timeout: int, since: date, run_date: da
         f"({category_query}) AND submittedDate:[{since.strftime('%Y%m%d')}0000 "
         f"TO {run_date.strftime('%Y%m%d')}2359]"
     )
-    items = fetch_arxiv_query_with_retry(search_query, limit, timeout, delay)
+    try:
+        items = fetch_arxiv_query_with_retry(search_query, limit, timeout, delay)
+    except FetchError:
+        if not section.get("fallback_latest", True):
+            raise
+        items = []
     if not items and section.get("fallback_latest", True):
         time_module.sleep(delay)
         items = fetch_arxiv_query_with_retry(f"({category_query})", limit, timeout, delay)

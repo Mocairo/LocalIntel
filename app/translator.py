@@ -18,8 +18,9 @@ def translate_world_news(settings: Settings, items: list[Item]) -> str:
         return ""
     provider = str(section.get("provider", "public"))
     if provider == "public":
+        timeout = public_translation_timeout(section)
         for item in targets:
-            value = translate_with_public_api(item.title, item.summary, timeout=int(section.get("timeout_seconds", 45)))
+            value = translate_with_public_api(item.title, item.summary, timeout=timeout)
             if value:
                 item.ai_summary = value
                 item.why = "已翻译为中文，便于快速浏览全球时事。"
@@ -57,6 +58,11 @@ def translate_world_news(settings: Settings, items: list[Item]) -> str:
             elif not item.ai_summary:
                 item.ai_summary = local_translate_stub(item)
     return "; ".join(errors[:3])
+
+
+def public_translation_timeout(section: dict[str, object]) -> int:
+    configured = int(section.get("public_timeout_seconds", section.get("timeout_seconds", 6)))
+    return max(1, min(configured, 6))
 
 
 def translate_batch(base_url: str, api_key: str, model: str, batch: list[Item], timeout: int) -> dict[str, str]:

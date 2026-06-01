@@ -1095,15 +1095,15 @@ DASHBOARD_HTML = r"""<!doctype html>
     .intel-card {
       position: relative;
       overflow: hidden;
-      height: 410px;
-      min-height: 410px;
+      height: 468px;
+      min-height: 468px;
       padding: 14px;
       border: 1px solid var(--line);
       border-top: 3px solid var(--blue);
       border-radius: 8px;
       background: var(--panel);
       display: grid;
-      grid-template-rows: 28px 46px 48px 78px 26px 28px 72px;
+      grid-template-rows: 28px 56px 60px 88px 30px 44px 72px;
       gap: 8px;
       align-content: start;
       box-shadow: 0 8px 22px rgba(23, 32, 38, 0.055);
@@ -1993,8 +1993,8 @@ DASHBOARD_HTML = r"""<!doctype html>
       grid-template-rows: auto auto auto auto;
     }
     .intel-card {
-      height: 410px;
-      min-height: 410px;
+      height: 468px;
+      min-height: 468px;
       padding: 14px;
       border-top-width: 0;
       box-shadow: 0 12px 30px rgba(23, 32, 38, 0.055);
@@ -3475,8 +3475,8 @@ DASHBOARD_HTML = r"""<!doctype html>
       gap: 12px;
     }
     .intel-card {
-      height: 410px;
-      min-height: 410px;
+      height: 468px;
+      min-height: 468px;
       padding: 14px;
       background: #fff;
       box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
@@ -3629,27 +3629,923 @@ DASHBOARD_HTML = r"""<!doctype html>
       .runtime-grid { grid-template-columns: 1fr; }
       .alerts-grid { grid-template-columns: 1fr; }
     }
+
+    html {
+      overflow-x: hidden;
+    }
+
+    body.uupm-skin {
+      --uupm-bg: #f6f9ff;
+      --uupm-panel: rgba(255, 255, 255, 0.9);
+      --uupm-panel-solid: #ffffff;
+      --uupm-line: rgba(148, 163, 184, 0.24);
+      --uupm-line-strong: rgba(37, 99, 235, 0.28);
+      --uupm-ink: #0f172a;
+      --uupm-muted: #64748b;
+      --uupm-blue: #2563eb;
+      --uupm-sky: #0ea5e9;
+      --uupm-cyan: #06b6d4;
+      --uupm-violet: #7c3aed;
+      --uupm-teal: #0f8f8a;
+      --uupm-amber: #f59e0b;
+      --ink: var(--uupm-ink);
+      --muted: var(--uupm-muted);
+      --panel: var(--uupm-panel-solid);
+      --surface: #f8fbff;
+      --line: var(--uupm-line);
+      --line-strong: var(--uupm-line-strong);
+      --teal: var(--uupm-teal);
+      --blue: var(--uupm-blue);
+      position: relative;
+      background: linear-gradient(180deg, #f8fbff 0%, #f4f8ff 48%, #ffffff 100%);
+      color: var(--uupm-ink);
+      font-family: Inter, "DM Sans", "Segoe UI", "Microsoft YaHei", sans-serif;
+      overflow-x: hidden;
+    }
+
+    body.uupm-skin::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(37, 99, 235, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(37, 99, 235, 0.035) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.82), transparent 72%);
+    }
+
+    body.uupm-skin > .topbar,
+    body.uupm-skin > .app-shell {
+      position: relative;
+      z-index: 1;
+    }
+
+    .uupm-skin * {
+      letter-spacing: 0;
+    }
+
+    .uupm-skin .topbar {
+      border: 0;
+      background: rgba(246, 249, 255, 0.84);
+      box-shadow: none;
+      backdrop-filter: blur(18px);
+    }
+
+    .uupm-skin .topbar-inner {
+      min-height: 60px;
+      margin: 10px auto 0;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 18px 45px rgba(37, 99, 235, 0.1);
+    }
+
+    .uupm-dashboard-frame {
+      max-width: 1600px;
+      padding: 24px;
+    }
+
+    .uupm-skin .dashboard-layout {
+      grid-template-columns: 248px minmax(0, 1fr);
+      gap: 24px;
+    }
+
+    .uupm-skin .rail {
+      gap: 14px;
+    }
+
+    .uupm-skin .rail-section,
+    .uupm-skin .overview-hero,
+    .uupm-skin .runtime-panel,
+    .uupm-skin .llm-panel,
+    .uupm-skin .alerts-panel,
+    .uupm-skin .overview-card,
+    .uupm-skin .today-hero,
+    .uupm-skin .today-panel,
+    .uupm-skin .today-mainlines,
+    .uupm-skin .today-queue,
+    .uupm-skin .today-reader,
+    .uupm-skin .watch-panel,
+    .uupm-skin .intel-card,
+    .uupm-skin .mainline-card,
+    .uupm-skin .watch-card,
+    .uupm-skin .watch-history-row,
+    .uupm-skin .drawer-inner,
+    .uupm-skin .detail-card,
+    .uupm-skin .detail-hero,
+    .uupm-skin .queue-summary span,
+    .uupm-skin .runtime-card,
+    .uupm-skin .metric,
+    .uupm-skin .progress-panel {
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 18px 45px rgba(15, 23, 42, 0.06);
+      backdrop-filter: blur(16px);
+    }
+
+    .uupm-skin .overview-hero,
+    .uupm-skin .today-hero {
+      border-radius: 24px;
+      padding: 22px 26px;
+      background:
+        linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(6, 182, 212, 0.08) 46%, rgba(255, 255, 255, 0.96)),
+        rgba(255, 255, 255, 0.92);
+    }
+
+    .uupm-skin .overview-hero p,
+    .uupm-skin .today-hero p {
+      max-width: 680px;
+      color: #475569;
+    }
+
+    .uupm-gradient-title {
+      background: linear-gradient(90deg, #0f172a, #2563eb 52%, #7c3aed);
+      background-clip: text;
+      color: transparent;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-weight: 850;
+    }
+
+    .uupm-skin .view-nav-btn {
+      border-radius: 16px;
+      background: transparent;
+    }
+
+    .uupm-skin .view-nav-btn.active {
+      border-color: rgba(37, 99, 235, 0.12);
+      background: linear-gradient(135deg, #2563eb, #06b6d4);
+      box-shadow: 0 16px 34px rgba(37, 99, 235, 0.22);
+    }
+
+    .uupm-skin .primary,
+    .uupm-skin .overview-action.primary {
+      border-color: transparent;
+      background: linear-gradient(135deg, #2563eb, #06b6d4);
+      box-shadow: 0 14px 28px rgba(37, 99, 235, 0.2);
+    }
+
+    .uupm-skin button,
+    .uupm-skin input,
+    .uupm-skin select,
+    .uupm-skin textarea {
+      border-color: rgba(148, 163, 184, 0.3);
+    }
+
+    .uupm-skin input,
+    .uupm-skin select,
+    .uupm-skin textarea {
+      background: rgba(255, 255, 255, 0.88);
+    }
+
+    .uupm-skin .category-btn.active,
+    .uupm-skin .bucket-tabs button.active,
+    .uupm-skin .read-tabs button.active {
+      border-color: rgba(37, 99, 235, 0.28);
+      background: rgba(37, 99, 235, 0.08);
+      color: #1d4ed8;
+    }
+
+    .uupm-skin .trend-curve-chart {
+      background:
+        linear-gradient(180deg, rgba(37, 99, 235, 0.08), rgba(6, 182, 212, 0.025)),
+        repeating-linear-gradient(0deg, transparent 0 54px, rgba(148, 163, 184, 0.15) 55px 56px);
+    }
+
+    .uupm-skin .trend-curve-chart .trend-line {
+      stroke: #2563eb;
+    }
+
+    .uupm-skin .trend-curve-chart .trend-area {
+      fill: url(#trendCurveFill);
+    }
+
+    .uupm-skin .trend-curve-chart .trend-dot {
+      stroke: #2563eb;
+    }
+
+    .uupm-skin .feed-grid,
+    .uupm-skin .cluster-strip,
+    .uupm-skin .alerts-grid,
+    .uupm-skin .watch-grid,
+    .uupm-panel-grid {
+      gap: 16px;
+    }
+
+    .uupm-skin .card-top {
+      grid-template-columns: minmax(106px, 1fr) auto auto auto;
+      gap: 6px;
+    }
+
+    .uupm-skin .intel-card,
+    .uupm-skin .mainline-card,
+    .uupm-skin .watch-card {
+      border-radius: 18px;
+    }
+
+    .uupm-skin .card-actions button,
+    .uupm-skin .card-actions a {
+      border-color: rgba(148, 163, 184, 0.28);
+      background: rgba(255, 255, 255, 0.84);
+    }
+
+    .uupm-skin .source-ok {
+      color: #047857;
+    }
+
+    .uupm-skin .sparkline {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(6, 182, 212, 0.08));
+    }
+
+    @media (max-width: 1080px) {
+      .uupm-dashboard-frame {
+        padding: 16px;
+      }
+
+      .uupm-skin .dashboard-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .uupm-skin .topbar {
+      left: 260px;
+      width: calc(100% - 260px);
+      background: rgba(255, 255, 255, 0.9);
+      border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+    }
+
+    .uupm-skin .topbar-inner {
+      min-height: 70px;
+      margin: 0;
+      padding: 0 30px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .topbar-clock {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: #64748b;
+      font-size: 15px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .topbar-clock span[data-icon] {
+      width: 18px;
+      height: 18px;
+      color: #64748b;
+    }
+
+    .topbar-clock svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .uupm-dashboard-frame {
+      max-width: none;
+      padding: 0 24px 28px 284px;
+    }
+
+    .uupm-skin .dashboard-layout {
+      display: block;
+    }
+
+    .uupm-skin .rail {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 25;
+      width: 260px;
+      padding: 18px 14px 22px;
+      border-right: 1px solid rgba(226, 232, 240, 0.95);
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 14px 0 44px rgba(15, 23, 42, 0.05);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 8px 28px;
+    }
+
+    .app-sidebar-brand .brand-logo {
+      width: 44px;
+      height: 44px;
+      box-shadow: 0 12px 26px rgba(15, 143, 138, 0.22);
+    }
+
+    .app-sidebar-brand h1 {
+      margin: 0;
+      color: #0f172a;
+      font-size: 20px;
+      line-height: 1.1;
+    }
+
+    .app-sidebar-brand .eyebrow {
+      margin-top: 5px;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .uupm-skin .rail-section {
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+      padding: 0;
+    }
+
+    .uupm-skin .rail-section h2 {
+      display: none;
+    }
+
+    .uupm-skin .view-nav {
+      gap: 10px;
+    }
+
+    .uupm-skin .view-nav-btn {
+      min-height: 72px;
+      grid-template-columns: 30px minmax(0, 1fr);
+      border: 0;
+      border-left: 3px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: #111827;
+      box-shadow: none;
+    }
+
+    .uupm-skin .view-nav-btn span[data-icon] {
+      color: #0f172a;
+    }
+
+    .uupm-skin .view-nav-btn.active {
+      border-color: #1d6cff;
+      background: linear-gradient(90deg, rgba(29, 108, 255, 0.14), rgba(29, 108, 255, 0.045));
+      color: #1d4ed8;
+      box-shadow: none;
+    }
+
+    .uupm-skin .view-nav-btn.active span[data-icon] {
+      color: #1d6cff;
+    }
+
+    .sidebar-collapse {
+      margin-top: auto;
+      width: 100%;
+      justify-content: flex-start;
+      border: 0;
+      background: transparent;
+      color: #64748b;
+      box-shadow: none;
+      font-weight: 650;
+    }
+
+    body.uupm-skin.sidebar-collapsed .topbar {
+      left: 76px;
+      width: calc(100% - 76px);
+    }
+
+    body.uupm-skin.sidebar-collapsed .uupm-dashboard-frame {
+      padding-left: 100px;
+    }
+
+    body.uupm-skin.sidebar-collapsed .rail {
+      width: 76px;
+      padding-inline: 12px;
+      align-items: center;
+    }
+
+    body.uupm-skin.sidebar-collapsed .app-sidebar-brand {
+      justify-content: center;
+      padding-inline: 0;
+    }
+
+    body.uupm-skin.sidebar-collapsed .brand-copy,
+    body.uupm-skin.sidebar-collapsed .view-nav-btn b,
+    body.uupm-skin.sidebar-collapsed .view-nav-btn small {
+      display: none;
+    }
+
+    body.uupm-skin.sidebar-collapsed .view-nav-btn {
+      width: 52px;
+      min-height: 56px;
+      grid-template-columns: 1fr;
+      justify-items: center;
+      padding: 0;
+    }
+
+    body.uupm-skin.sidebar-collapsed .view-nav-btn span[data-icon] {
+      margin: 0;
+    }
+
+    body.uupm-skin.sidebar-collapsed .sidebar-collapse {
+      justify-content: center;
+      padding-inline: 0;
+      font-size: 0;
+    }
+
+    body.uupm-skin.sidebar-collapsed .sidebar-collapse::before {
+      content: "展开";
+      font-size: 14px;
+    }
+
+    .uupm-skin .main-area {
+      padding-top: 20px;
+      max-width: none;
+    }
+
+    .overview-reference-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(330px, 0.85fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .uupm-skin .overview-hero {
+      min-height: 226px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto 64px;
+      grid-column: 1;
+      gap: 14px;
+      padding: 20px 24px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #eef6ff 0%, #f7fbff 58%, #ffffff 100%);
+      box-shadow: 0 12px 34px rgba(29, 78, 216, 0.08);
+    }
+
+    .overview-command-center::after {
+      height: 0;
+    }
+
+    .overview-hero-copy {
+      min-width: 0;
+    }
+
+    .uupm-gradient-title {
+      color: #0f172a;
+      -webkit-text-fill-color: initial;
+      background: none;
+      font-size: 28px;
+      letter-spacing: 0;
+    }
+
+    .uupm-skin .overview-hero p {
+      max-width: 720px;
+      font-size: 14px;
+      line-height: 1.58;
+    }
+
+    .uupm-skin .overview-actions {
+      align-self: start;
+      padding-top: 8px;
+    }
+
+    .uupm-skin .overview-action {
+      min-width: 96px;
+      height: 44px;
+      justify-content: center;
+      border-radius: 8px;
+    }
+
+    .overview-status-strip {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      min-height: 64px;
+      border: 1px solid rgba(203, 213, 225, 0.72);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.78);
+      overflow: hidden;
+    }
+
+    .overview-status-item {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-left: 1px solid rgba(226, 232, 240, 0.9);
+    }
+
+    .overview-status-item:first-child {
+      border-left: 0;
+    }
+
+    .overview-status-icon {
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      color: #4f6b95;
+    }
+
+    .overview-status-icon svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      stroke-width: 1.9;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .overview-status-item b {
+      display: block;
+      margin-bottom: 5px;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .overview-status-item span:not(.overview-status-icon) {
+      display: block;
+      overflow: hidden;
+      color: #0f8f8a;
+      font-size: 13px;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .overview-trend-panel {
+      grid-column: 2;
+      grid-row: 1;
+      height: 226px;
+      min-height: 226px;
+      overflow: hidden;
+    }
+
+    .overview-trend-panel .trend-hero-card {
+      gap: 8px;
+    }
+
+    .overview-trend-panel .trend-hero-top b {
+      font-size: 26px;
+    }
+
+    .overview-trend-panel .trend-curve-chart {
+      height: 132px;
+    }
+
+    .uupm-skin .overview-card,
+    .uupm-skin .alerts-panel,
+    .uupm-skin .llm-panel {
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.055);
+    }
+
+    .uupm-skin .overview-card {
+      padding: 18px 20px;
+    }
+
+    .overview-summary-band {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 220px;
+      align-items: center;
+      min-height: 76px;
+      padding: 14px 22px 14px 92px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .llm-badge {
+      position: absolute;
+      left: 22px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #4f46e5;
+      background: #eef2ff;
+    }
+
+    .llm-badge svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .llm-copy {
+      min-width: 0;
+    }
+
+    .uupm-skin .llm-panel pre {
+      margin-top: 4px;
+      max-height: 42px;
+      font-size: 13px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+
+    .overview-summary-band .sparkline {
+      justify-self: end;
+      width: 210px;
+      height: 64px;
+      opacity: 0.45;
+    }
+
+    .overview-dashboard-grid {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(310px, 0.72fr) minmax(310px, 0.78fr);
+      gap: 16px;
+    }
+
+    #overviewAlertsPanel {
+      display: block;
+      min-height: 314px;
+      padding: 18px 20px;
+    }
+
+    .uupm-skin .alerts-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .alert-card {
+      min-height: 108px;
+      border-radius: 8px;
+      background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+    }
+
+    .overview-bar-row {
+      grid-template-columns: 28px 90px minmax(0, 1fr) 34px;
+      min-height: 34px;
+    }
+
+    .overview-category-icon,
+    .overview-source-icon,
+    .weekly-stat-icon,
+    #overviewWatchPanel .watch-row-icon {
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #1d6cff;
+      background: #eaf2ff;
+    }
+
+    .overview-category-icon,
+    .overview-source-icon {
+      width: 24px;
+      height: 24px;
+    }
+
+    .overview-category-icon svg,
+    .overview-source-icon svg,
+    .weekly-stat-icon svg,
+    #overviewWatchPanel .watch-row-icon svg {
+      stroke: currentColor;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .overview-category-icon svg,
+    .overview-source-icon svg {
+      width: 16px;
+      height: 16px;
+      stroke-width: 2;
+    }
+
+    .tone-blue { color: #2563eb; background: #eaf2ff; }
+    .tone-green { color: #059669; background: #dff8ee; }
+    .tone-orange { color: #f97316; background: #fff0df; }
+    .tone-red { color: #ef4444; background: #feecec; }
+    .tone-purple { color: #7c3aed; background: #f0e8ff; }
+    .tone-dark { color: #111827; background: #f1f5f9; }
+
+    .overview-source-row > .overview-source-icon,
+    .overview-bar-row > .overview-category-icon {
+      display: grid;
+      margin-top: 0;
+    }
+
+    .overview-source-row > .overview-source-icon.tone-blue,
+    .overview-bar-row > .overview-category-icon.tone-blue { color: #2563eb; }
+    .overview-source-row > .overview-source-icon.tone-green,
+    .overview-bar-row > .overview-category-icon.tone-green { color: #059669; }
+    .overview-source-row > .overview-source-icon.tone-orange,
+    .overview-bar-row > .overview-category-icon.tone-orange { color: #f97316; }
+    .overview-source-row > .overview-source-icon.tone-red,
+    .overview-bar-row > .overview-category-icon.tone-red { color: #ef4444; }
+    .overview-source-row > .overview-source-icon.tone-purple,
+    .overview-bar-row > .overview-category-icon.tone-purple { color: #7c3aed; }
+    .overview-source-row > .overview-source-icon.tone-dark,
+    .overview-bar-row > .overview-category-icon.tone-dark { color: #111827; }
+
+    .overview-bar-track {
+      height: 6px;
+      background: #e8edf4;
+    }
+
+    .overview-bar-fill {
+      background: linear-gradient(90deg, #1d6cff, #3b82f6);
+    }
+
+    .overview-source-row,
+    .overview-watch-row {
+      min-height: 48px;
+      padding: 9px 10px;
+      border: 1px solid rgba(226, 232, 240, 0.88);
+      border-radius: 8px;
+      background: #fbfdff;
+    }
+
+    .overview-source-row {
+      grid-template-columns: 30px minmax(0, 1fr) auto;
+    }
+
+    .overview-source-row strong,
+    .overview-watch-row strong {
+      color: #0f172a;
+    }
+
+    .overview-status-pill {
+      border-radius: 999px;
+      color: #059669;
+      background: #dff8ee;
+    }
+
+    #overviewWeeklyPanel {
+      grid-column: 1 / span 1;
+    }
+
+    #overviewWatchPanel {
+      grid-column: 2 / span 2;
+    }
+
+    #overviewWeeklyPanel .overview-card-head,
+    #overviewWatchPanel .overview-card-head {
+      align-items: start;
+      margin-bottom: 14px;
+    }
+
+    .weekly-card {
+      display: grid;
+      gap: 14px;
+      box-shadow: none;
+    }
+
+    .weekly-stats {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    #overviewWeeklyPanel .weekly-head {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      justify-content: flex-start;
+    }
+
+    #overviewWeeklyPanel .weekly-head a {
+      color: #0f172a;
+      font-size: 16px;
+      font-weight: 850;
+    }
+
+    #overviewWeeklyPanel .weekly-stats span {
+      min-height: 78px;
+      border-radius: 8px;
+      background: #fbfdff;
+    }
+
+    #overviewWeeklyPanel .weekly-stats span i {
+      width: 32px;
+      height: 32px;
+      margin: 0 auto 8px;
+    }
+
+    #overviewWeeklyPanel .weekly-stats span i svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+    }
+
+    #overviewWatchPanel .overview-watch-total {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-bottom: 10px;
+    }
+
+    #overviewWatchPanel .overview-watch-total span {
+      min-height: 38px;
+      display: grid;
+      grid-template-columns: 34px auto minmax(0, 1fr);
+      align-items: center;
+      gap: 8px;
+      border-color: rgba(191, 219, 254, 0.95);
+      background: linear-gradient(90deg, #eef6ff, #ffffff);
+    }
+
+    #overviewWatchPanel .overview-watch-total span::before {
+      content: "";
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #dff8ee;
+    }
+
+    #overviewWatchPanel .overview-watch-total b {
+      margin: 0;
+      color: #0f172a;
+      font-size: 18px;
+    }
+
+    #overviewWatchPanel .overview-watch-total em {
+      color: #64748b;
+      font-style: normal;
+      font-size: 12px;
+    }
+
+    #overviewWatchPanel .overview-watch-list {
+      gap: 8px;
+    }
+
+    #overviewWatchPanel .overview-watch-row {
+      min-height: 36px;
+      padding: 7px 10px;
+      grid-template-columns: 28px minmax(0, 1fr) auto;
+    }
+
+    #overviewWatchPanel .watch-row-icon {
+      width: 22px;
+      height: 22px;
+    }
+
+    #overviewWatchPanel .watch-row-icon svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+    }
+
+    @media (max-width: 1180px) {
+      .uupm-skin .topbar {
+        left: 0;
+        width: 100%;
+      }
+
+      .uupm-dashboard-frame {
+        padding: 88px 16px 24px;
+      }
+
+      .uupm-skin .rail {
+        position: static;
+        width: auto;
+        margin-bottom: 16px;
+      }
+
+      body.uupm-skin.sidebar-collapsed .topbar {
+        left: 0;
+        width: 100%;
+      }
+
+      body.uupm-skin.sidebar-collapsed .uupm-dashboard-frame {
+        padding: 88px 16px 24px;
+      }
+
+      body.uupm-skin.sidebar-collapsed .rail {
+        width: auto;
+        align-items: stretch;
+      }
+
+      .overview-reference-grid,
+      .overview-dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .overview-trend-panel,
+      .overview-summary-band,
+      #overviewWeeklyPanel,
+      #overviewWatchPanel {
+        grid-column: 1;
+      }
+
+      .overview-status-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
   </style>
 </head>
-<body>
-  <header class="topbar">
+<body class="uupm-skin">
+  <header class="topbar uupm-surface">
     <div class="topbar-inner">
-      <div class="brand-row">
-        <div class="brand-logo" aria-hidden="true">
-          <svg viewBox="0 0 64 64" focusable="false">
-            <rect width="64" height="64" rx="16" fill="#f8fbfb" />
-            <path d="M16 10h25l13 13v31H16z" fill="#0f8f8a" />
-            <path d="M41 10v10c0 3 2 5 5 5h8z" fill="#6ee7db" />
-            <path d="M24 22v17c0 6 4 9 10 9h11V30" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" />
-            <path d="M31 31h8M31 38h8" fill="none" stroke="#6ee7db" stroke-width="3" stroke-linecap="round" />
-            <rect x="43" y="27" width="7" height="7" rx="1.5" fill="#6ee7db" />
-          </svg>
-        </div>
-        <div class="brand-copy">
-          <div class="eyebrow">观微知著 · 私有情报台</div>
-          <h1>知微情报中枢</h1>
-        </div>
-        <div class="subtitle" id="subtitle">加载中</div>
+      <div class="topbar-clock">
+        <span data-icon="clock"></span>
+        <span id="subtitle">加载中</span>
       </div>
       <div class="top-actions">
         <button id="favoritesBtn" class="soft icon-action"><span data-icon="star"></span>收藏</button>
@@ -3660,10 +4556,26 @@ DASHBOARD_HTML = r"""<!doctype html>
     </div>
   </header>
 
-  <main class="app-shell">
+  <main class="app-shell uupm-dashboard-frame">
     <div class="dashboard-layout">
       <aside class="rail">
-        <section class="rail-section rail-nav">
+        <div class="app-sidebar-brand">
+          <div class="brand-logo" aria-hidden="true">
+            <svg viewBox="0 0 64 64" focusable="false">
+              <rect width="64" height="64" rx="16" fill="#f8fbfb" />
+              <path d="M16 10h25l13 13v31H16z" fill="#0f8f8a" />
+              <path d="M41 10v10c0 3 2 5 5 5h8z" fill="#6ee7db" />
+              <path d="M24 22v17c0 6 4 9 10 9h11V30" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" />
+              <path d="M31 31h8M31 38h8" fill="none" stroke="#6ee7db" stroke-width="3" stroke-linecap="round" />
+              <rect x="43" y="27" width="7" height="7" rx="1.5" fill="#6ee7db" />
+            </svg>
+          </div>
+          <div class="brand-copy">
+            <h1>知微情报中枢</h1>
+            <div class="eyebrow">观微知时 · 私有情报台</div>
+          </div>
+        </div>
+        <section class="rail-section rail-nav uupm-surface">
           <h2>导航</h2>
           <div class="view-nav" id="viewNav">
             <button class="view-nav-btn active" data-view-nav="overview" type="button"><span data-icon="grid"></span><b>概览</b><small>总体、摘要、提醒</small></button>
@@ -3671,76 +4583,72 @@ DASHBOARD_HTML = r"""<!doctype html>
             <button class="view-nav-btn" data-view-nav="watch" type="button"><span data-icon="target"></span><b>观察雷达</b><small>对象走势和详情</small></button>
           </div>
         </section>
+        <button class="sidebar-collapse" id="sidebarCollapseBtn" type="button">收起侧栏</button>
       </aside>
 
       <section class="main-area">
         <section class="overview-shell" data-views="overview">
-          <div class="overview-hero overview-command-center" id="overviewHero">
-            <div>
-              <span class="overview-kicker">今日总控台</span>
-              <h2>情报态势概览</h2>
-              <p id="overviewBrief">正在读取今天的情报状态、来源健康和观察雷达。</p>
-            </div>
-            <div class="overview-actions" aria-label="概览快捷入口">
-              <button class="overview-action primary" data-overview-go="today" type="button"><span data-icon="doc"></span>今日情报</button>
-              <button class="overview-action" data-overview-go="watch" type="button"><span data-icon="target"></span>观察雷达</button>
-            </div>
-          </div>
-          <div class="overview-grid overview-focus-grid">
-            <div class="overview-stack overview-signal-board">
-              <section class="runtime-panel" id="runtimePanel">
-                <div class="runtime-head">
-                  <h2>运行状态</h2>
-                  <span class="meta" id="runtimeUpdated">等待状态</span>
-                </div>
-                <div class="runtime-grid" id="runtimeGrid"></div>
-              </section>
-              <section class="llm-panel overview-summary" id="llmPanel">
+          <div class="overview-reference-grid uupm-panel-grid">
+            <section class="overview-hero overview-command-center uupm-command-card" id="overviewHero">
+              <div class="overview-hero-copy">
+                <span class="overview-kicker">今日总控台</span>
+                <h2 class="uupm-gradient-title">情报态势概览</h2>
+                <p id="overviewBrief">正在读取今天的情报状态、来源健康和观察雷达。</p>
+              </div>
+              <div class="overview-actions" aria-label="概览快捷入口">
+                <button class="overview-action primary" data-overview-go="today" type="button"><span data-icon="doc"></span>今日情报</button>
+                <button class="overview-action" data-overview-go="watch" type="button"><span data-icon="target"></span>观察雷达</button>
+              </div>
+              <div class="overview-status-strip" id="overviewStatusStrip"></div>
+            </section>
+            <section class="overview-card overview-trend-panel overview-wide" id="overviewTrendPanel">
+              <div class="overview-card-head">
+                <h3>近期趋势</h3>
+                <span>近 7 天</span>
+              </div>
+              <div class="trend" id="overviewTrend"></div>
+            </section>
+            <section class="llm-panel overview-summary-band" id="llmPanel">
+              <div class="llm-badge"><span data-icon="sparkles"></span></div>
+              <div class="llm-copy">
                 <div class="llm-head">
                   <h2>今日摘要</h2>
                   <span id="llmTime"></span>
                 </div>
                 <pre id="llmSummary"></pre>
-                <div class="sparkline" aria-hidden="true"></div>
-              </section>
-              <section class="alerts-panel overview-signals" id="alertsPanel">
+              </div>
+              <div class="sparkline" aria-hidden="true"></div>
+            </section>
+            <div class="overview-dashboard-grid" aria-label="主页看板">
+              <section class="alerts-panel overview-signals" id="overviewAlertsPanel">
                 <div class="alerts-head">
                   <h2>高价值信号</h2>
                   <span id="alertsNote">规则筛选，模型判断</span>
                 </div>
                 <div class="alerts-grid" id="alerts"></div>
               </section>
-            </div>
-            <div class="overview-insights overview-balance-grid" aria-label="可视化摘要">
-              <section class="overview-card" id="overviewCategoryMix">
+              <section class="overview-card" id="overviewCategoryPanel">
                 <div class="overview-card-head">
                   <h3>分类占比</h3>
                   <span id="overviewCategoryNote">等待数据</span>
                 </div>
                 <div class="overview-bar-list" id="overviewCategoryBars"></div>
               </section>
-              <section class="overview-card" id="overviewSourceHealth">
+              <section class="overview-card" id="overviewSourcesPanel">
                 <div class="overview-card-head">
                   <h3>来源健康</h3>
                   <span id="overviewSourceNote">等待数据</span>
                 </div>
                 <div class="overview-source-list" id="overviewSourceRows"></div>
               </section>
-              <section class="overview-card overview-wide" id="overviewSourceTrend">
-                <div class="overview-card-head">
-                  <h3>近期趋势</h3>
-                  <span>近 7 天</span>
-                </div>
-                <div class="trend" id="overviewTrend"></div>
-              </section>
-              <section class="overview-card" id="overviewWeeklyBrief">
+              <section class="overview-card" id="overviewWeeklyPanel">
                 <div class="overview-card-head">
                   <h3>本周沉淀</h3>
                   <span>周报摘要</span>
                 </div>
                 <div class="weekly" id="overviewWeekly"></div>
               </section>
-              <section class="overview-card" id="overviewWatchBrief">
+              <section class="overview-card" id="overviewWatchPanel">
                 <div class="overview-card-head">
                   <h3>观察雷达</h3>
                   <span id="overviewWatchNote">等待数据</span>
@@ -3769,10 +4677,10 @@ DASHBOARD_HTML = r"""<!doctype html>
         </section>
 
         <section class="today-workbench" id="todayWorkbench" data-views="today">
-          <section class="today-hero" id="todayHero">
+          <section class="today-hero uupm-command-card" id="todayHero">
             <div>
               <span class="overview-kicker">今日情报</span>
-              <h2>阅读与处理工作台</h2>
+              <h2 class="uupm-gradient-title">阅读与处理工作台</h2>
               <p id="todayBrief">按分类、优先级和阅读状态快速收敛今天值得处理的情报。</p>
             </div>
             <div class="today-command">
@@ -3961,11 +4869,19 @@ DASHBOARD_HTML = r"""<!doctype html>
     const icons = {
       ban: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 8.5 7 7"></path></svg>',
       check: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 2.6 2.6L16.5 8.8"></path></svg>',
+      calendar: '<svg viewBox="0 0 24 24"><path d="M5 5h14v15H5z"></path><path d="M8 3v4"></path><path d="M16 3v4"></path><path d="M5 9h14"></path></svg>',
+      clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>',
+      code: '<svg viewBox="0 0 24 24"><path d="m9 8-4 4 4 4"></path><path d="m15 8 4 4-4 4"></path><path d="m13 5-2 14"></path></svg>',
       doc: '<svg viewBox="0 0 24 24"><path d="M7 3.8h7l3 3V20H7z"></path><path d="M14 3.8V7h3"></path><path d="M9.5 12h5"></path><path d="M9.5 15h4"></path></svg>',
       flame: '<svg viewBox="0 0 24 24"><path d="M12 21c-3.4 0-6-2.5-6-5.8 0-2.2 1.2-4.2 3.1-5.4.4 1.4 1.2 2.2 2.4 2.6-.5-2.7.4-5 2.8-6.8 1 2.7 3.7 4.3 3.7 8.5 0 3.9-2.7 6.9-6 6.9z"></path><circle cx="12" cy="15" r="2.5"></circle></svg>',
+      gift: '<svg viewBox="0 0 24 24"><path d="M4 10h16v10H4z"></path><path d="M3 6h18v4H3z"></path><path d="M12 6v14"></path><path d="M12 6c-1.8 0-4-.6-4-2 0-1 1-1.5 2-1.1 1 .4 1.7 1.7 2 3.1z"></path><path d="M12 6c1.8 0 4-.6 4-2 0-1-1-1.5-2-1.1-1 .4-1.7 1.7-2 3.1z"></path></svg>',
+      globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3c2.4 2.5 3.6 5.5 3.6 9S14.4 18.5 12 21"></path><path d="M12 3c-2.4 2.5-3.6 5.5-3.6 9S9.6 18.5 12 21"></path></svg>',
       grid: '<svg viewBox="0 0 24 24"><path d="M4 4h6v6H4z"></path><path d="M14 4h6v6h-6z"></path><path d="M4 14h6v6H4z"></path><path d="M14 14h6v6h-6z"></path></svg>',
       list: '<svg viewBox="0 0 24 24"><path d="M8 6h12"></path><path d="M8 12h12"></path><path d="M8 18h12"></path><path d="M4 6h.01"></path><path d="M4 12h.01"></path><path d="M4 18h.01"></path></svg>',
+      network: '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"></circle><circle cx="5" cy="19" r="2"></circle><circle cx="19" cy="19" r="2"></circle><path d="M12 7v4"></path><path d="M7 18l5-7 5 7"></path></svg>',
+      paper: '<svg viewBox="0 0 24 24"><path d="M7 4h10v16H7z"></path><path d="M10 8h4"></path><path d="M10 12h4"></path><path d="M10 16h3"></path></svg>',
       refresh: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"></path><path d="M20 4v5h-5"></path></svg>',
+      rss: '<svg viewBox="0 0 24 24"><path d="M5 19h.01"></path><path d="M5 12a7 7 0 0 1 7 7"></path><path d="M5 5a14 14 0 0 1 14 14"></path></svg>',
       settings: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v2"></path><path d="M12 19v2"></path><path d="M4.2 7.5 6 8.5"></path><path d="m18 15.5 1.8 1"></path><path d="m4.2 16.5 1.8-1"></path><path d="m18 8.5 1.8-1"></path></svg>',
       sparkles: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"></path></svg>',
       star: '<svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z"></path></svg>',
@@ -3975,6 +4891,48 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     function iconSvg(name) {
       return icons[name] || "";
+    }
+
+    function categoryIconName(category) {
+      return {
+        world_news: "globe",
+        technology: "flame",
+        ai: "network",
+        programming: "code",
+        open_source: "gift"
+      }[category] || "grid";
+    }
+
+    function categoryIconTone(category) {
+      return {
+        world_news: "blue",
+        technology: "red",
+        ai: "purple",
+        programming: "orange",
+        open_source: "green"
+      }[category] || "blue";
+    }
+
+    function sourceIconName(source) {
+      return {
+        arxiv: "paper",
+        gdelt: "globe",
+        github: "code",
+        github_trending: "code",
+        hackernews: "flame",
+        rss: "rss"
+      }[source] || "network";
+    }
+
+    function sourceIconTone(source) {
+      return {
+        arxiv: "red",
+        gdelt: "blue",
+        github: "dark",
+        github_trending: "dark",
+        hackernews: "orange",
+        rss: "orange"
+      }[source] || "blue";
     }
 
     function hydrateIcons(root = document) {
@@ -4045,13 +5003,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       try {
         await loadRuntimeStatus();
       } catch (error) {
-        $("runtimeUpdated").textContent = "运行状态暂不可用";
-        $("runtimeGrid").innerHTML = `
-          <div class="runtime-card">
-            <b>运行状态</b>
-            <span class="runtime-warn" title="暂不可用">暂不可用</span>
-          </div>
-        `;
+        renderOverviewRuntimeStrip([["运行状态", "暂不可用", "runtime-warn", "check"]]);
       }
     }
 
@@ -4070,13 +5022,26 @@ DASHBOARD_HTML = r"""<!doctype html>
         ["下次运行", formatDateTime(data.next_run_at), "runtime-ok"],
         ["来源", sourceText, failedSources.length ? "runtime-error" : "runtime-ok"]
       ];
-      $("runtimeGrid").innerHTML = cards.map(([label, value, className]) => `
-        <div class="runtime-card">
-          <b>${esc(label)}</b>
-          <span class="${esc(className)}" title="${esc(value)}">${esc(value)}</span>
+      renderOverviewRuntimeStrip([
+        [cards[0][0], cards[0][1], cards[0][2], "check"],
+        [cards[1][0], cards[1][1], cards[1][2], "refresh"],
+        [cards[2][0], cards[2][1], cards[2][2], "clock"],
+        [cards[3][0], cards[3][1], cards[3][2], "calendar"],
+        ["时区", data.timezone || "", "runtime-ok", "globe"],
+        [cards[4][0], cards[4][1], cards[4][2], "network"]
+      ]);
+    }
+
+    function renderOverviewRuntimeStrip(cards) {
+      $("overviewStatusStrip").innerHTML = cards.map(([label, value, className, icon]) => `
+        <div class="overview-status-item">
+          <span class="overview-status-icon" data-icon="${esc(icon || "check")}">${iconSvg(icon || "check")}</span>
+          <div>
+            <b>${esc(label)}</b>
+            <span class="${esc(className)}" title="${esc(value)}">${esc(value || "-")}</span>
+          </div>
         </div>
       `).join("");
-      $("runtimeUpdated").textContent = `时区：${data.timezone || ""}`;
     }
 
     function processLabel(status) {
@@ -4166,6 +5131,7 @@ DASHBOARD_HTML = r"""<!doctype html>
         const label = labels[row.category] || row.category || "未分类";
         return `
           <div class="overview-bar-row">
+            <span class="overview-category-icon tone-${esc(categoryIconTone(row.category))}">${iconSvg(categoryIconName(row.category))}</span>
             <span class="overview-bar-label" title="${esc(label)}">${esc(label)}</span>
             <span class="overview-bar-track" aria-label="${esc(label)} ${esc(count)} 条"><span class="overview-bar-fill" style="width: ${esc(pct)}%"></span></span>
             <span class="overview-bar-count">${esc(count)}</span>
@@ -4184,6 +5150,7 @@ DASHBOARD_HTML = r"""<!doctype html>
         const ok = row.status === "ok";
         return `
           <div class="overview-source-row">
+            <span class="overview-source-icon tone-${esc(sourceIconTone(row.source))}">${iconSvg(sourceIconName(row.source))}</span>
             <div>
               <strong>${esc(sourceName(row.source))}</strong>
               <span>${ok ? "抓取正常" : "需要检查"} · ${esc(row.count || 0)} 条</span>
@@ -4204,6 +5171,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       }
       const activeHtml = activeRows.slice(0, 3).map((row) => `
         <div class="overview-watch-row">
+          <span class="watch-row-icon tone-blue">${iconSvg("target")}</span>
           <div>
             <strong>${esc(row.name || row.target_id || "观察对象")}</strong>
             <span>${esc(row.action || row.summary || "持续观察")} · 命中 ${esc(row.match_count || 0)} 条</span>
@@ -4213,6 +5181,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       `).join("");
       const quietHtml = rows.filter((row) => row.status !== "active").slice(0, Math.max(0, 3 - activeRows.length)).map((row) => `
         <div class="overview-watch-row">
+          <span class="watch-row-icon tone-purple">${iconSvg("target")}</span>
           <div>
             <strong>${esc(row.name || row.target_id || "观察对象")}</strong>
             <span>${esc(row.summary || "暂未命中值得提醒的变化")}</span>
@@ -4222,8 +5191,8 @@ DASHBOARD_HTML = r"""<!doctype html>
       `).join("");
       $("overviewWatchSummary").innerHTML = `
         <div class="overview-watch-total">
-          <span><b>${esc(activeRows.length)}</b>有动向</span>
-          <span><b>${esc(rows.length - activeRows.length)}</b>观察中</span>
+          <span><b>${esc(activeRows.length)}</b><em>有动向</em></span>
+          <span><b>${esc(rows.length - activeRows.length)}</b><em>观察中</em></span>
         </div>
         <div class="overview-watch-list">${activeHtml || quietHtml ? activeHtml + quietHtml : "<div class='empty'>暂无观察雷达数据</div>"}</div>
       `;
@@ -4252,12 +5221,25 @@ DASHBOARD_HTML = r"""<!doctype html>
       const lines = String(summary || "")
         .split(/\r?\n/)
         .filter((line) => !/^LLM\s*(模型|model)\s*[:：]/i.test(line.trim()));
+      const overview = extractLlmOverview(lines.join("\n"));
+      if (overview) return overview;
       if (/^LLM\s*(failed|skipped)/i.test((lines[0] || "").trim())) {
         const fallbackIndex = lines.findIndex((line) => line.trim().startsWith("本地规则"));
         if (fallbackIndex >= 0) return lines.slice(fallbackIndex).join("\n").trim();
         return "LLM 暂不可用，已使用本地规则摘要。";
       }
-      return lines.join("\n").trim();
+      const text = lines.join("\n").trim();
+      return text.length > 360 ? `${text.slice(0, 359).trim()}...` : text;
+    }
+
+    function extractLlmOverview(text) {
+      const match = String(text || "").match(/"overview"\s*:\s*"((?:\\.|[^"\\])*)"/s);
+      if (!match) return "";
+      try {
+        return JSON.parse(`"${match[1]}"`).trim();
+      } catch {
+        return match[1].trim();
+      }
     }
 
     function renderRunProgress(progress) {
@@ -4426,6 +5408,13 @@ DASHBOARD_HTML = r"""<!doctype html>
       }[source] || source || "未知来源";
     }
 
+    function sourceShortName(source) {
+      return {
+        github_trending: "GitHub",
+        hackernews: "HN"
+      }[source] || sourceName(source);
+    }
+
     function showToast(message, sticky = false) {
       $("toast").textContent = message;
       $("toast").classList.add("show");
@@ -4476,8 +5465,8 @@ DASHBOARD_HTML = r"""<!doctype html>
           <svg class="trend-curve-chart" viewBox="0 0 420 220" preserveAspectRatio="none" role="img" aria-label="近 7 天有效情报趋势">
             <defs>
               <linearGradient id="trendCurveFill" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stop-color="#0f8f8a" stop-opacity="0.22"></stop>
-                <stop offset="72%" stop-color="#2459b8" stop-opacity="0.055"></stop>
+                <stop offset="0%" stop-color="#2563eb" stop-opacity="0.24"></stop>
+                <stop offset="72%" stop-color="#06b6d4" stop-opacity="0.07"></stop>
                 <stop offset="100%" stop-color="#ffffff" stop-opacity="0"></stop>
               </linearGradient>
             </defs>
@@ -4591,10 +5580,10 @@ DASHBOARD_HTML = r"""<!doctype html>
             <div class="weekly-meta">${esc(weekly.label || "")}</div>
           </div>
           <div class="weekly-stats">
-            <span><b>${esc(weekly.active_total || 0)}</b><em>有效条目</em></span>
-            <span><b>${esc((weekly.report_dates || []).length)}</b><em>覆盖日报</em></span>
-            <span><b>${esc(must)}</b><em>必看</em></span>
-            <span><b>${esc(unread)}</b><em>未读</em></span>
+            <span><i class="weekly-stat-icon tone-blue">${iconSvg("doc")}</i><b>${esc(weekly.active_total || 0)}</b><em>有效条目</em></span>
+            <span><i class="weekly-stat-icon tone-green">${iconSvg("check")}</i><b>${esc((weekly.report_dates || []).length)}</b><em>覆盖日报</em></span>
+            <span><i class="weekly-stat-icon tone-orange">${iconSvg("star")}</i><b>${esc(must)}</b><em>必看</em></span>
+            <span><i class="weekly-stat-icon tone-purple">${iconSvg("ban")}</i><b>${esc(unread)}</b><em>未读</em></span>
           </div>
           <div class="weekly-tags">${tags || "<span>暂无热词</span>"}</div>
         </article>
@@ -4666,10 +5655,12 @@ DASHBOARD_HTML = r"""<!doctype html>
       const summary = item.ai_summary || item.summary || "";
       const judgement = renderJudgement(item.judgement || fallbackJudgement(item));
       const cluster = Number(item.cluster_size || 1) > 1 ? ` · 事件组 ${item.cluster_size}` : "";
+      const sourceLabel = sourceName(item.source);
+      const sourceShortLabel = sourceShortName(item.source);
       return `
         <article class="intel-card" data-hash="${esc(item.hash)}" data-category="${esc(item.category || "general")}" data-bucket="${esc(item.bucket || "scan")}">
           <div class="card-top">
-            <span class="source-pill" title="${esc(sourceName(item.source))}">${esc(sourceName(item.source))}</span>
+            <span class="source-pill" title="${esc(sourceLabel)}">${esc(sourceShortLabel)}</span>
             <span class="bucket-pill ${esc(item.bucket || "scan")}">${esc(bucketLabels[item.bucket] || "可扫")}</span>
             <span class="read-pill ${esc(item.read_status || "unread")}">${esc(readLabels[item.read_status] || "未读")}</span>
             <span class="score">rank ${esc(index + 1)}</span>
@@ -4714,7 +5705,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       const data = await api(`/api/alerts?${params}`);
       const alerts = data.alerts || [];
       const visibleAlerts = alerts.slice(0, 6);
-      $("alertsPanel").classList.toggle("show", visibleAlerts.length > 0);
+      $("overviewAlertsPanel").classList.toggle("show", visibleAlerts.length > 0);
       $("alertsNote").textContent = alerts.length ? `${alerts.length} 条高价值信号` : "暂无需要提醒的信号";
       const alertsEl = $("alerts");
       alertsEl.className = `alerts-grid count-${Math.min(visibleAlerts.length, 6)}`;
@@ -5078,6 +6069,31 @@ DASHBOARD_HTML = r"""<!doctype html>
       setView(saved, false);
     }
 
+    function loadSidebarPreference() {
+      let collapsed = false;
+      try {
+        collapsed = localStorage.getItem("localIntelSidebarCollapsed") === "1";
+      } catch {
+        collapsed = false;
+      }
+      setSidebarCollapsed(collapsed, false);
+    }
+
+    function setSidebarCollapsed(collapsed, persist = true) {
+      const next = !!collapsed;
+      document.body.classList.toggle("sidebar-collapsed", next);
+      const button = $("sidebarCollapseBtn");
+      button.textContent = next ? "展开侧栏" : "收起侧栏";
+      button.setAttribute("aria-expanded", String(!next));
+      if (persist) {
+        try {
+          localStorage.setItem("localIntelSidebarCollapsed", next ? "1" : "0");
+        } catch {
+          // localStorage can be unavailable in restricted browser contexts.
+        }
+      }
+    }
+
     function setView(view, persist = true) {
       const next = ["overview", "today", "watch"].includes(view) ? view : "overview";
       state.view = next;
@@ -5201,6 +6217,9 @@ DASHBOARD_HTML = r"""<!doctype html>
       const button = event.target.closest("[data-view-nav]");
       if (button) setView(button.dataset.viewNav || "overview");
     });
+    $("sidebarCollapseBtn").addEventListener("click", () => {
+      setSidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"));
+    });
     $("overviewHero").addEventListener("click", (event) => {
       const button = event.target.closest("[data-overview-go]");
       if (button) setView(button.dataset.overviewGo || "overview");
@@ -5281,6 +6300,7 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     hydrateIcons();
     loadTheme();
+    loadSidebarPreference();
     loadDashboardView();
     refresh().catch((error) => {
       $("subtitle").textContent = error.message;

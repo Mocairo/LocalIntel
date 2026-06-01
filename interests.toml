@@ -19,46 +19,46 @@ source_bonus = 0.05
 id = "ai-agent"
 name = "AI Agent"
 type = "topic"
-keywords = ["agent", "AI agent", "coding agent", "Claude Code"]
-description = "跟踪智能体、编程代理和自动化开发工具。"
 enabled = true
+keywords = ["agent", "AI agent", "coding agent", "Claude Code", "Memory"]
+description = "跟踪智能体、编程代理和自动化开发工具。"
 
 [[watchlist]]
 id = "rag"
 name = "RAG"
 type = "topic"
+enabled = true
 keywords = ["RAG", "retrieval augmented generation", "vector database"]
 description = "跟踪检索增强生成、知识库和向量检索。"
-enabled = true
 
 [[watchlist]]
 id = "local-model"
 name = "本地模型"
 type = "topic"
+enabled = true
 keywords = ["local model", "on-device", "ollama", "llama.cpp", "本地模型"]
 description = "跟踪本地模型、端侧推理和私有部署。"
-enabled = true
 
 [[watchlist]]
 id = "developer-tools"
 name = "开发工具"
 type = "topic"
+enabled = true
 keywords = ["developer tools", "Python", "IDE", "debugging", "testing"]
 description = "跟踪开发效率、工程工具和 Python 生态。"
-enabled = true
 
 [[watchlist]]
 id = "ai-policy"
 name = "AI 政策"
 type = "topic"
+enabled = true
 keywords = ["AI regulation", "AI policy", "technology regulation", "人工智能监管"]
 description = "跟踪 AI 监管、政策变化和技术治理。"
-enabled = true
 
 [[watchlist]]
 id = "semiconductor"
 name = "芯片产业"
 type = "topic"
+enabled = true
 keywords = ["semiconductor", "chip", "GPU", "supply chain", "芯片"]
 description = "跟踪芯片、GPU 和供应链变化。"
-enabled = true

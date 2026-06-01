@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 from app.config import Settings
 from app.dedupe import item_hash
@@ -110,7 +111,7 @@ def build_llm_summary(settings: Settings, items: list[Item], report_date: str = 
     parsed = parse_json_object(content)
     if not parsed:
         record_llm_job(db_path, job_date, "daily_summary", "fallback", used_model, len(selected), "non-json content")
-        return content or local_daily_summary(items, f"LLM failed: empty content from {used_model}")
+        return fallback_model_summary(content, items, used_model)
     enrich_items(items, parsed)
     overview = str(parsed.get("overview") or "").strip()
     highlights = parsed.get("highlights", [])
@@ -209,6 +210,40 @@ def parse_json_object(content: str) -> dict[str, object]:
     except json.JSONDecodeError:
         return {}
     return value if isinstance(value, dict) else {}
+
+
+def fallback_model_summary(content: str, items: list[Item], used_model: str) -> str:
+    overview = extract_json_string_field(content, "overview")
+    if overview:
+        return model_summary(used_model, overview)
+    text = compact_plain_summary(content)
+    if text and not text.lstrip().startswith(("{", "[")):
+        return model_summary(used_model, text)
+    return local_daily_summary(items, f"LLM failed: {used_model} returned malformed JSON.")
+
+
+def extract_json_string_field(content: str, field: str) -> str:
+    match = re.search(rf'"{re.escape(field)}"\s*:\s*"((?:\\.|[^"\\])*)"', content, re.S)
+    if not match:
+        return ""
+    encoded = match.group(1)
+    try:
+        value = json.loads(f'"{encoded}"')
+    except json.JSONDecodeError:
+        value = encoded
+    return " ".join(str(value).split())
+
+
+def compact_plain_summary(content: str, limit: int = 360) -> str:
+    text = " ".join(str(content or "").split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "..."
+
+
+def model_summary(model: str, summary: str) -> str:
+    text = summary.strip()
+    return f"LLM 模型：{model}\n\n{text}" if model else text
 
 
 def enrich_items(items: list[Item], parsed: dict[str, object]) -> None:

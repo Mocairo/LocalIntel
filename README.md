@@ -8,6 +8,12 @@
 http://127.0.0.1:8765/
 ```
 
+## 当前主线
+
+当前日常使用和维护以 `main` 分支为准。`reliability-foundation` 工作树里的可靠性基础、观察雷达、阅读工作流和新版概览仪表盘已经作为主线能力维护；启动、测试、配置和文档命令都统一从 `D:\python_code\local-intel` 执行。
+
+分支与工作目录约定见 [docs/mainline.md](docs/mainline.md)。
+
 ## 安装依赖
 
 建议使用 Python 3.11 或更新版本。

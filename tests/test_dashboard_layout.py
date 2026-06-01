@@ -17,12 +17,12 @@ def test_dashboard_overview_has_visual_command_center() -> None:
     for marker in (
         'class="overview-shell"',
         'id="overviewHero"',
-        'id="overviewCategoryMix"',
-        'id="overviewSourceHealth"',
-        'id="overviewSourceTrend"',
-        'id="overviewWeeklyBrief"',
-        'id="overviewWatchBrief"',
-        'class="alerts-panel overview-signals"',
+        'id="overviewCategoryPanel"',
+        'id="overviewSourcesPanel"',
+        'id="overviewTrendPanel"',
+        'id="overviewWeeklyPanel"',
+        'id="overviewWatchPanel"',
+        'id="overviewAlertsPanel"',
     ):
         assert marker in DASHBOARD_HTML
     assert 'id="overviewKpis"' not in DASHBOARD_HTML
@@ -59,10 +59,9 @@ def test_today_page_has_workbench_layout() -> None:
 
 def test_dashboard_cards_and_detail_drawer_are_reader_friendly() -> None:
     for marker in (
-        "overview-balance-grid",
         "overview-command-center",
-        "overview-focus-grid",
-        "overview-signal-board",
+        "overview-reference-grid",
+        "overview-dashboard-grid",
         'class="trend-curve-chart"',
         "function paddedTrendRows",
         "function smoothCurvePath",
@@ -75,10 +74,69 @@ def test_dashboard_cards_and_detail_drawer_are_reader_friendly() -> None:
         assert marker in DASHBOARD_HTML
 
     assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in DASHBOARD_HTML
-    assert "height: 410px;" in DASHBOARD_HTML
-    assert "grid-template-rows: 28px 46px 48px 78px 26px 28px 72px;" in DASHBOARD_HTML
+    assert "height: 468px;" in DASHBOARD_HTML
+    assert "grid-template-rows: 28px 56px 60px 88px 30px 44px 72px;" in DASHBOARD_HTML
     assert ".intel-card .card-actions {" in DASHBOARD_HTML
     assert "overflow: visible;" in DASHBOARD_HTML
     assert "-webkit-line-clamp: 2;" in DASHBOARD_HTML
     assert ".detail-actionbar span[data-icon]" in DASHBOARD_HTML
     assert ".detail-actionbar svg" in DASHBOARD_HTML
+    assert "function extractLlmOverview" in DASHBOARD_HTML
+
+
+def test_dashboard_uses_uupm_inspired_visual_skin() -> None:
+    for marker in (
+        'class="uupm-skin"',
+        "uupm-dashboard-frame",
+        "uupm-surface",
+        "uupm-gradient-title",
+        "uupm-command-card",
+        "uupm-panel-grid",
+    ):
+        assert marker in DASHBOARD_HTML
+
+    assert "body.uupm-skin > *" not in DASHBOARD_HTML
+    assert "body.uupm-skin > .topbar" in DASHBOARD_HTML
+    assert "body.uupm-skin > .app-shell" in DASHBOARD_HTML
+    assert "function sourceShortName" in DASHBOARD_HTML
+
+
+def test_overview_matches_reference_home_layout() -> None:
+    for marker in (
+        'class="app-sidebar-brand"',
+        'id="sidebarCollapseBtn"',
+        'class="topbar-clock"',
+        "overview-reference-grid",
+        "overview-status-strip",
+        "overview-summary-band",
+        "overview-dashboard-grid",
+        "overviewHero",
+        "overviewTrendPanel",
+        "overviewAlertsPanel",
+        "overviewCategoryPanel",
+        "overviewSourcesPanel",
+        "overviewWeeklyPanel",
+        "overviewWatchPanel",
+        "renderOverviewRuntimeStrip",
+        "watch-row-icon",
+    ):
+        assert marker in DASHBOARD_HTML
+
+    assert 'id="runtimeGrid"' not in DASHBOARD_HTML
+    assert "padding-top: 20px;" in DASHBOARD_HTML
+    assert "function setSidebarCollapsed" in DASHBOARD_HTML
+    assert "sidebar-collapsed" in DASHBOARD_HTML
+    assert 'localStorage.setItem("localIntelSidebarCollapsed"' in DASHBOARD_HTML
+
+
+def test_overview_uses_unified_icon_system() -> None:
+    for marker in (
+        "function categoryIconName",
+        "function sourceIconName",
+        "function sourceIconTone",
+        "overview-category-icon",
+        "overview-source-icon",
+        "weekly-stat-icon",
+        "watch-row-icon",
+    ):
+        assert marker in DASHBOARD_HTML
