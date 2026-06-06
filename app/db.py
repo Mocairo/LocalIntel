@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS watch_radar (
     status TEXT NOT NULL,
     summary TEXT NOT NULL,
     action TEXT NOT NULL,
+    generation TEXT NOT NULL DEFAULT 'local_rule',
     confidence REAL NOT NULL,
     match_count INTEGER NOT NULL,
     item_hash TEXT NOT NULL,
@@ -181,6 +182,10 @@ USER_MARK_EXTRA_COLUMNS = {
     "read_at": "TEXT",
 }
 
+WATCH_RADAR_EXTRA_COLUMNS = {
+    "generation": "TEXT DEFAULT 'local_rule'",
+}
+
 READ_STATUSES = {"unread", "read", "later", "archived"}
 
 
@@ -191,6 +196,7 @@ def init_db(path: Path) -> None:
         ensure_item_columns(conn)
         ensure_cluster_columns(conn)
         ensure_user_mark_columns(conn)
+        ensure_watch_radar_columns(conn)
 
 
 def ensure_item_columns(conn: sqlite3.Connection) -> None:
@@ -212,6 +218,13 @@ def ensure_user_mark_columns(conn: sqlite3.Connection) -> None:
     for name, definition in USER_MARK_EXTRA_COLUMNS.items():
         if name not in existing:
             conn.execute(f"ALTER TABLE user_marks ADD COLUMN {name} {definition}")
+
+
+def ensure_watch_radar_columns(conn: sqlite3.Connection) -> None:
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(watch_radar)").fetchall()}
+    for name, definition in WATCH_RADAR_EXTRA_COLUMNS.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE watch_radar ADD COLUMN {name} {definition}")
 
 
 def save_items(path: Path, items: list[Item]) -> int:
@@ -537,11 +550,129 @@ def dashboard_stats(path: Path, report_date: str = "") -> dict[str, object]:
         "bucket_counts": [dict(row) for row in buckets],
         "cluster_count": int(cluster_count or 0),
         "llm_jobs": [dict(row) for row in llm_jobs],
+        "briefing": dashboard_briefing(path, report_date),
         "mark_counts": {
             "favorites": int((mark_counts["favorites"] if mark_counts else 0) or 0),
             "ignored": int((mark_counts["ignored"] if mark_counts else 0) or 0),
         },
     }
+
+
+def dashboard_briefing(path: Path, report_date: str = "", limit: int = 3) -> dict[str, object]:
+    init_db(path)
+    if not report_date:
+        report_date = latest_report_date(path)
+    if not report_date:
+        return {
+            "report_date": "",
+            "generation": {"mode": "not_generated", "label": "未生成", "detail": "暂无日报数据"},
+            "headlines": [],
+            "world_news": [],
+        }
+
+    with sqlite3.connect(path) as conn:
+        conn.row_factory = sqlite3.Row
+        run = conn.execute("SELECT * FROM report_runs WHERE report_date = ?", (report_date,)).fetchone()
+        llm_jobs = conn.execute(
+            """
+            SELECT job_type, status, model, item_count, error, created_at
+            FROM llm_jobs
+            WHERE report_date = ?
+            ORDER BY id DESC
+            LIMIT 8
+            """,
+            (report_date,),
+        ).fetchall()
+    generation = briefing_generation(dict(run) if run else {}, [dict(row) for row in llm_jobs])
+    clusters = load_dashboard_clusters(path, report_date=report_date, limit=max(limit, 3))
+    items = load_dashboard_items(path, report_date=report_date, include_ignored=False, limit=120)
+    by_hash = {str(item.get("hash") or ""): item for item in items}
+    headlines: list[dict[str, object]] = []
+    for cluster in clusters[:limit]:
+        top_hash = str(cluster.get("top_hash") or "")
+        top_item = by_hash.get(top_hash, {})
+        why = str(cluster.get("explanation") or cluster.get("summary") or "").strip()
+        if not why and top_item:
+            why = str(top_item.get("why") or top_item.get("top_reason") or "").strip()
+        headlines.append(
+            {
+                "title": cluster.get("title") or top_item.get("title") or "未命名主线",
+                "why": why or "本地规则按排序、聚类和来源证据判断为今日主线。",
+                "evidence_count": int(cluster.get("size") or 1),
+                "category": cluster.get("category") or top_item.get("category") or "general",
+                "score": float(cluster.get("score") or top_item.get("rank_score") or 0),
+                "top_hash": top_hash,
+                "top_url": cluster.get("top_url") or top_item.get("url") or "",
+                "generation": "llm" if generation["mode"] == "llm" else "local_rule",
+                "actions": ["阅读", "收藏", "加入观察", "稍后看", "忽略"],
+            }
+        )
+    if len(headlines) < limit:
+        seen = {row["top_hash"] for row in headlines}
+        for item in items:
+            item_hash_value = str(item.get("hash") or "")
+            if not item_hash_value or item_hash_value in seen:
+                continue
+            headlines.append(
+                {
+                    "title": display_title_from_item(item),
+                    "why": item.get("why") or item.get("top_reason") or "该条目进入今日高分排序，适合优先判断。",
+                    "evidence_count": int(item.get("cluster_size") or 1),
+                    "category": item.get("category") or "general",
+                    "score": float(item.get("rank_score") or 0),
+                    "top_hash": item_hash_value,
+                    "top_url": item.get("url") or "",
+                    "generation": "llm" if generation["mode"] == "llm" else "local_rule",
+                    "actions": ["阅读", "收藏", "加入观察", "稍后看", "忽略"],
+                }
+            )
+            if len(headlines) >= limit:
+                break
+    world_news = [
+        {
+            "hash": item.get("hash") or "",
+            "title": display_title_from_item(item),
+            "original_title": item.get("original_title") or item.get("title") or "",
+            "summary": item.get("ai_summary") or item.get("summary") or "",
+            "translation_status": item.get("translation_status") or "unavailable",
+            "source": item.get("source") or "",
+            "url": item.get("url") or "",
+            "risk": (item.get("judgement") or {}).get("risk", "") if isinstance(item.get("judgement"), dict) else "",
+        }
+        for item in items
+        if item.get("category") == "world_news"
+    ][:5]
+    return {
+        "report_date": report_date,
+        "generation": generation,
+        "headlines": headlines[:limit],
+        "world_news": world_news,
+    }
+
+
+def briefing_generation(run: dict[str, object], llm_jobs: list[dict[str, object]]) -> dict[str, str]:
+    daily_jobs = [job for job in llm_jobs if job.get("job_type") == "daily_summary"]
+    if daily_jobs:
+        job = daily_jobs[0]
+        status = str(job.get("status") or "")
+        model = str(job.get("model") or "")
+        if status == "ok":
+            return {"mode": "llm", "label": "LLM 生成", "detail": model or "daily_summary ok"}
+        if status in {"failed", "skipped", "fallback"}:
+            return {"mode": "local_fallback", "label": "本地规则回退", "detail": str(job.get("error") or status)}
+    summary = str(run.get("llm_summary") or "").strip()
+    if summary.startswith("LLM 模型") or summary.startswith("LLM model"):
+        return {"mode": "llm", "label": "LLM 生成", "detail": "cached daily summary"}
+    if summary:
+        return {"mode": "local_fallback", "label": "本地规则回退", "detail": "cached local summary"}
+    return {"mode": "not_generated", "label": "未生成", "detail": "暂无 LLM 摘要"}
+
+
+def display_title_from_item(item: dict[str, object]) -> str:
+    zh_title = str(item.get("zh_title") or "").strip()
+    if zh_title:
+        return zh_title
+    return str(item.get("title") or "").strip()
 
 
 def dashboard_alerts(path: Path, report_date: str = "", limit: int = 6) -> list[dict[str, object]]:
@@ -640,7 +771,7 @@ def load_watch_radar(path: Path, report_date: str = "", limit: int = 6) -> list[
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             """
-            SELECT target_id, name, type, status, summary, action, confidence, match_count,
+            SELECT target_id, name, type, status, summary, action, generation, confidence, match_count,
                    item_hash, item_title, source, url, score
             FROM watch_radar
             WHERE report_date = ?
@@ -748,7 +879,7 @@ def load_watch_target_detail(path: Path, target_id: str, days: int = 7) -> dict[
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             """
-            SELECT report_date, target_id, name, type, status, summary, action, confidence,
+            SELECT report_date, target_id, name, type, status, summary, action, generation, confidence,
                    match_count, item_hash, item_title, source, url, score
             FROM watch_radar
             WHERE target_id = ?
@@ -771,6 +902,7 @@ def load_watch_target_detail(path: Path, target_id: str, days: int = 7) -> dict[
             "type": latest["type"],
             "latest_status": latest["status"],
             "latest_action": latest["action"],
+            "generation": latest.get("generation", "local_rule"),
             "latest_confidence": float(latest["confidence"] or 0),
             "latest_match_count": int(latest["match_count"] or 0),
             "latest_report_date": latest["report_date"],
@@ -794,9 +926,9 @@ def record_watch_radar(path: Path, report_date: str, rows: list[dict[str, object
             conn.execute(
                 """
                 INSERT INTO watch_radar
-                    (report_date, target_id, name, type, status, summary, action, confidence,
+                    (report_date, target_id, name, type, status, summary, action, generation, confidence,
                      match_count, item_hash, item_title, source, url, score, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     report_date,
@@ -806,6 +938,7 @@ def record_watch_radar(path: Path, report_date: str, rows: list[dict[str, object
                     str(row.get("status") or "quiet")[:20],
                     str(row.get("summary") or "")[:500],
                     str(row.get("action") or "持续观察")[:20],
+                    str(row.get("generation") or "local_rule")[:20],
                     float(row.get("confidence") or 0),
                     int(row.get("match_count") or 0),
                     str(row.get("item_hash") or ""),
@@ -1060,6 +1193,7 @@ def build_judgement(row: sqlite3.Row, tags: list[object], raw: dict[str, Any]) -
     tag_text = "、".join(str(tag) for tag in tags[:3] if str(tag) and str(tag) != category)
     theme = str(raw.get("world_theme") or "").strip()
     feed = str(raw.get("feed") or "").strip()
+    llm_risk = str(raw.get("llm_risk") or "").strip()
 
     if reason:
         recommendation = reason
@@ -1115,6 +1249,8 @@ def build_judgement(row: sqlite3.Row, tags: list[object], raw: dict[str, Any]) -
     impact = impact_map.get(category, "影响范围：日常判断、知识更新与后续观察。")
 
     risks: list[str] = []
+    if llm_risk:
+        risks.append(f"模型风险提示：{llm_risk}")
     if source == "gdelt":
         risks.append("新闻聚合源，需注意标题党和单一报道视角")
     if source.startswith("rss:"):
@@ -1216,6 +1352,10 @@ def row_to_item_dict(row: sqlite3.Row) -> dict[str, object]:
         "bucket": row["bucket"],
         "tags": tags,
         "top_reason": row["top_reason"],
+        "original_title": raw.get("original_title", row["title"]),
+        "zh_title": raw.get("zh_title", ""),
+        "translation_status": raw.get("translation_status", ""),
+        "translation_provider": raw.get("translation_provider", ""),
         "cluster_id": row_value(row, "cluster_id", ""),
         "cluster_size": row_value(row, "cluster_size", 1),
         "favorite": bool(row["favorite"]),

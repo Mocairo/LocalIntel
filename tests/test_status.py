@@ -153,6 +153,33 @@ def test_read_latest_run_reads_latest_report_and_errors(tmp_path: Path) -> None:
     assert result["source_health"][0]["source"] == "rss"
 
 
+def test_read_latest_run_reports_degraded_when_source_empty_without_run_error(tmp_path: Path) -> None:
+    db_path = tmp_path / "intel.sqlite"
+    init_db(db_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO report_runs
+                (report_date, raw_total, deduped_total, inserted, llm_summary, errors_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("2026-06-01", 0, 0, 0, "", "[]", "2026-06-01T01:00:00+00:00"),
+        )
+        conn.execute(
+            """
+            INSERT INTO source_health
+                (report_date, source, status, count, duration_seconds, error, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("2026-06-01", "arxiv", "empty", 0, 1.2, "arXiv 返回 0 条", "2026-06-01T01:00:00+00:00"),
+        )
+
+    result = read_latest_run(db_path)
+
+    assert result["status"] == "degraded"
+    assert result["source_health"][0]["status"] == "empty"
+
+
 def test_build_runtime_status_returns_process_and_schedule_summary(tmp_path: Path) -> None:
     settings = settings_for(tmp_path)
     data_dir = tmp_path / "data"
@@ -208,3 +235,46 @@ def test_build_runtime_status_reports_database_error_for_unreadable_sqlite(tmp_p
 
     assert result["last_run"]["status"] == "error"
     assert result["database"]["status"] == "error"
+
+
+def test_build_runtime_status_keeps_database_ok_when_latest_run_has_source_error(tmp_path: Path) -> None:
+    settings = settings_for(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_path = data_dir / "intel.sqlite"
+    init_db(db_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO report_runs
+                (report_date, raw_total, deduped_total, inserted, llm_summary, errors_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "2026-06-01",
+                10,
+                9,
+                9,
+                "",
+                json.dumps(["gdelt failed"], ensure_ascii=False),
+                "2026-06-01T01:00:00+00:00",
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO source_health
+                (report_date, source, status, count, duration_seconds, error, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("2026-06-01", "gdelt", "failed", 0, 1.2, "invalid json", "2026-06-01T01:00:00+00:00"),
+        )
+
+    result = build_runtime_status(
+        settings,
+        now=datetime(2026, 6, 1, 9, 0, tzinfo=ZoneInfo("Asia/Shanghai")),
+        pid_checker=lambda pid: False,
+        port_checker=lambda host, port: False,
+    )
+
+    assert result["last_run"]["status"] == "error"
+    assert result["database"]["status"] == "ok"

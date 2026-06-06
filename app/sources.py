@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import math
 import time as time_module
 from datetime import date, datetime, timedelta, timezone
 from html.parser import HTMLParser
@@ -113,6 +114,77 @@ class GitHubTrendingParser(HTMLParser):
 ProgressCallback = Callable[[dict[str, Any]], None]
 
 
+def classify_source_health(
+    source: str,
+    section: dict[str, Any],
+    count: int,
+    duration_seconds: float,
+    error: str = "",
+) -> dict[str, Any]:
+    count_value = max(0, int(count or 0))
+    duration = round(float(duration_seconds or 0), 2)
+    if error:
+        return {
+            "status": "failed",
+            "count": count_value,
+            "duration_seconds": duration,
+            "error": f"{source} 请求失败：{error}",
+        }
+    if count_value == 0:
+        return {
+            "status": "empty",
+            "count": 0,
+            "duration_seconds": duration,
+            "error": f"{source} 返回 0 条，可能是查询条件过窄、网络问题、API 空响应或当天没有新内容。",
+        }
+    expected = expected_source_count(source, section)
+    threshold = degraded_threshold(expected)
+    if count_value < threshold:
+        return {
+            "status": "degraded",
+            "count": count_value,
+            "duration_seconds": duration,
+            "error": f"{source} 结果明显偏少：仅 {count_value} 条，低于预期约 {expected} 条；可能部分请求失败或查询条件过窄。",
+        }
+    return {
+        "status": "ok",
+        "count": count_value,
+        "duration_seconds": duration,
+        "error": f"{source} 返回 {count_value} 条，采集正常。",
+    }
+
+
+def expected_source_count(source: str, section: dict[str, Any]) -> int:
+    if source == "hackernews":
+        return max(1, int(section.get("limit", 25)))
+    if source == "github":
+        limit = max(1, int(section.get("limit", 10)))
+        release_count = len(section.get("release_repos", []) or [])
+        if section.get("trending_enabled", True):
+            return limit + release_count
+        queries = [row for row in section.get("queries", []) if str(row).strip()]
+        return limit * max(1, len(queries)) + release_count
+    if source == "arxiv":
+        return max(1, int(section.get("limit", 20)))
+    if source == "gdelt":
+        limit = max(1, int(section.get("limit", 10)))
+        query_count = len([row for row in section.get("queries", []) if str(row).strip()])
+        theme_rows = section.get("theme_pool", []) or []
+        theme_count = len([row for row in theme_rows if isinstance(row, dict) and str(row.get("query") or "").strip()])
+        per_run = int(section.get("theme_queries_per_run", theme_count or 0))
+        return limit * max(1, query_count + min(theme_count, per_run))
+    if source == "rss":
+        feeds = [row for row in section.get("feeds", []) if isinstance(row, dict) and str(row.get("url") or "").strip()]
+        return max(1, len(feeds) * int(section.get("limit_per_feed", 8)))
+    return max(1, int(section.get("limit", 8) or 8))
+
+
+def degraded_threshold(expected: int) -> int:
+    if expected <= 2:
+        return 1
+    return max(2, min(8, math.ceil(expected * 0.25)))
+
+
 def fetch_all(settings: Settings, run_date: date, progress: ProgressCallback | None = None) -> tuple[list[Item], dict[str, Any]]:
     timeout = int(settings.section("app").get("request_timeout_seconds", 20))
     days_back = int(settings.section("app").get("days_back", 1))
@@ -146,41 +218,33 @@ def fetch_all(settings: Settings, run_date: date, progress: ProgressCallback | N
             batch = fetcher(section, timeout, since, run_date)
             items.extend(batch)
             stats["source_counts"][name] = len(batch)
-            stats.setdefault("source_health", {})[name] = {
-                "status": "ok",
-                "count": len(batch),
-                "duration_seconds": round(time_module.monotonic() - started, 2),
-                "error": "",
-            }
+            health = classify_source_health(name, section, len(batch), time_module.monotonic() - started)
+            stats.setdefault("source_health", {})[name] = health
             if progress:
                 progress(
                     {
                         "stage": "fetch",
                         "source": name,
-                        "status": "ok",
+                        "status": health["status"],
                         "count": len(batch),
                         "percent": 8 + round((index + 1) / total_sources * 38),
-                        "message": f"{name} 完成，抓到 {len(batch)} 条",
+                        "message": str(health.get("error") or f"{name} 完成，抓到 {len(batch)} 条"),
                     }
                 )
         except Exception as exc:  # Keep one failing source from killing the daily report.
             stats["source_counts"][name] = 0
             stats["errors"].append(f"{name}: {exc}")
-            stats.setdefault("source_health", {})[name] = {
-                "status": "error",
-                "count": 0,
-                "duration_seconds": 0,
-                "error": str(exc),
-            }
+            health = classify_source_health(name, section, 0, 0, str(exc))
+            stats.setdefault("source_health", {})[name] = health
             if progress:
                 progress(
                     {
                         "stage": "fetch",
                         "source": name,
-                        "status": "error",
+                        "status": "failed",
                         "count": 0,
                         "percent": 8 + round((index + 1) / total_sources * 38),
-                        "message": f"{name} 失败：{exc}",
+                        "message": str(health.get("error") or f"{name} 失败：{exc}"),
                     }
                 )
     return items, stats

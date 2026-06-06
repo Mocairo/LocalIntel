@@ -85,6 +85,8 @@ description = "跟踪芯片供应链"
     assert rows[1]["target_id"] == "chips"
     assert rows[1]["status"] == "quiet"
     assert rows[1]["match_count"] == 0
+    assert rows[1]["generation"] == "local_rule"
+    assert "建议关键词" in rows[1]["summary"]
 
 
 def test_watch_radar_cache_round_trip(tmp_path) -> None:
@@ -205,6 +207,7 @@ def test_watch_target_detail_returns_recent_records_for_one_target(tmp_path) -> 
         "type": "topic",
         "latest_status": "active",
         "latest_action": "立即看",
+        "generation": "local_rule",
         "latest_confidence": 0.9,
         "latest_match_count": 5,
         "latest_report_date": "2026-05-29",

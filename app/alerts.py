@@ -55,7 +55,7 @@ def build_llm_alerts(
         return []
 
     db_path = settings.app_path("data_dir") / "intel.sqlite"
-    model = str(section.get("model", "mimo-v2.5"))
+    model = str(section.get("model", "mimo-v2.5-pro"))
     api_key_env = str(section.get("api_key_env", "MIMO_API_KEY"))
     fallback_api_key_env = str(section.get("fallback_api_key_env", "OPENAI_API_KEY"))
     api_key = env_value(api_key_env, fallback_api_key_env)

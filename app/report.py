@@ -43,7 +43,10 @@ def render_markdown(run_date: str, items: list[Item], llm_summary: str, stats: d
     if top_items:
         for item in top_items:
             label = CATEGORY_LABELS.get(item.category, item.category)
-            lines.append(f"- [{item.title}]({item.url}) - {label} / {item.source} / rank {item.rank_score:g}")
+            lines.append(f"- [{display_title(item)}]({item.url}) - {label} / {item.source} / rank {item.rank_score:g}")
+            original = original_title(item)
+            if original and original != display_title(item):
+                lines.append(f"  - 原文标题：{original}")
             summary = item.ai_summary or item.top_reason or item.compact_summary(180)
             if summary:
                 lines.append(f"  - {summary}")
@@ -64,7 +67,10 @@ def render_markdown(run_date: str, items: list[Item], llm_summary: str, stats: d
         lines.extend([f"## {label}", ""])
         rows = sorted(grouped[category], key=lambda item: item.rank_score, reverse=True)[:20]
         for item in rows:
-            lines.append(f"- [{item.title}]({item.url})")
+            lines.append(f"- [{display_title(item)}]({item.url})")
+            original = original_title(item)
+            if original and original != display_title(item):
+                lines.append(f"  - 原文标题：{original}")
             meta = f"{item.source}"
             if item.published_at:
                 meta += f" | {item.published_at}"
@@ -160,7 +166,8 @@ def render_html(run_date: str, items: list[Item], llm_summary: str, stats: dict[
 
 
 def render_card(item: Item) -> str:
-    title = escape(item.title)
+    title = escape(display_title(item))
+    original = original_title(item)
     url = escape(item.url)
     label = escape(CATEGORY_LABELS.get(item.category, item.category))
     source = escape(item.source)
@@ -172,9 +179,19 @@ def render_card(item: Item) -> str:
     return (
         "<article class='card'>"
         f"<a href='{url}' target='_blank' rel='noreferrer'>{title}</a>"
-        f"<p>{summary}</p>"
-        f"<p class='why'>{why}</p>"
-        f"<div class='tags'>{tags}</div>"
-        f"<div class='meta'>{label} · {source} · rank {item.rank_score:g}{importance}<br>{published}</div>"
-        "</article>"
+        + (f"<p class='why'>原文标题：{escape(original)}</p>" if original and original != display_title(item) else "")
+        + f"<p>{summary}</p>"
+        + f"<p class='why'>{why}</p>"
+        + f"<div class='tags'>{tags}</div>"
+        + f"<div class='meta'>{label} · {source} · rank {item.rank_score:g}{importance}<br>{published}</div>"
+        + "</article>"
     )
+
+
+def display_title(item: Item) -> str:
+    value = str(item.raw.get("zh_title") or "").strip()
+    return value or item.title
+
+
+def original_title(item: Item) -> str:
+    return str(item.raw.get("original_title") or "").strip()

@@ -106,16 +106,28 @@ def read_latest_run(db_path: Path) -> dict[str, object]:
         return {"status": "error", "report_date": "", "created_at": "", "errors": [str(exc)], "source_health": []}
 
     errors = parse_errors(str(run["errors_json"] or "[]"))
+    source_health = [dict(row) for row in health_rows]
     return {
-        "status": "error" if errors else "ok",
+        "status": latest_run_status(errors, source_health),
         "report_date": str(run["report_date"] or ""),
         "created_at": str(run["created_at"] or ""),
         "raw_total": int(run["raw_total"] or 0),
         "deduped_total": int(run["deduped_total"] or 0),
         "inserted": int(run["inserted"] or 0),
         "errors": errors,
-        "source_health": [dict(row) for row in health_rows],
+        "source_health": source_health,
     }
+
+
+def latest_run_status(errors: list[str], source_health: list[dict[str, object]]) -> str:
+    if errors:
+        return "error"
+    statuses = {str(row.get("status") or "") for row in source_health}
+    if statuses & {"failed", "error"}:
+        return "error"
+    if statuses & {"empty", "degraded"}:
+        return "degraded"
+    return "ok"
 
 
 def parse_errors(value: str) -> list[str]:
@@ -152,7 +164,7 @@ def build_runtime_status(
     last_run = read_latest_run(db_path)
     if not db_path.exists():
         database_status = "not_initialized"
-    elif last_run.get("status") == "error":
+    elif last_run.get("status") == "error" and not last_run.get("report_date"):
         database_status = "error"
     else:
         database_status = "ok"

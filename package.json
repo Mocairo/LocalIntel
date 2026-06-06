@@ -1,0 +1,25 @@
+{
+  "name": "local-intel",
+  "version": "1.0.0",
+  "description": "本地运行的个人情报工作台。它会从 GitHub Trending、arXiv、Hacker News、GDELT、RSS 等来源抓取信息，做本地评分、分类、摘要、翻译、事件主线聚合，并通过本地网页仪表盘查看。",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mocairo/LocalIntel.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Mocairo/LocalIntel/issues"
+  },
+  "homepage": "https://github.com/Mocairo/LocalIntel#readme"
+}

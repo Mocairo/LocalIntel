@@ -11,6 +11,10 @@ from app.http import post_json
 from app.models import Item
 
 
+DEFAULT_MIMO_MODEL = "mimo-v2.5-pro"
+MIMO_MODEL_ORDER = ("mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro")
+
+
 def build_llm_summary(settings: Settings, items: list[Item], report_date: str = "") -> str:
     section = settings.section("llm")
     if not section.get("enabled", False):
@@ -18,7 +22,7 @@ def build_llm_summary(settings: Settings, items: list[Item], report_date: str = 
 
     db_path = settings.app_path("data_dir") / "intel.sqlite"
     job_date = report_date or "unknown"
-    model = str(section.get("model", "mimo-v2.5"))
+    model = str(section.get("model", DEFAULT_MIMO_MODEL))
     api_key_env = str(section.get("api_key_env", "MIMO_API_KEY"))
     fallback_api_key_env = str(section.get("fallback_api_key_env", "OPENAI_API_KEY"))
     api_key = env_value(api_key_env, fallback_api_key_env)
@@ -29,9 +33,7 @@ def build_llm_summary(settings: Settings, items: list[Item], report_date: str = 
     base_url_env = str(section.get("base_url_env", "MiMO_BASE_URL"))
     fallback_base_url_env = str(section.get("fallback_base_url_env", "OPENAI_BASE_URL"))
     base_url = env_value(base_url_env, fallback_base_url_env) or "https://api.openai.com/v1"
-    model_candidates = [str(row) for row in section.get("model_candidates", []) if str(row).strip()]
-    if model not in model_candidates:
-        model_candidates.insert(0, model)
+    model_candidates = configured_model_candidates(section, model)
     max_items = int(section.get("max_items", 40))
     max_tokens = int(section.get("max_tokens", 8000))
     timeout_seconds = int(section.get("timeout_seconds", 90))
@@ -58,7 +60,7 @@ def build_llm_summary(settings: Settings, items: list[Item], report_date: str = 
         "直接输出 JSON，不要 Markdown。"
         '格式：{"overview":"80字内中文总览","highlights":["hash"],'
         '"items":[{"hash":"hash","zh_summary":"一句话中文摘要","why":"重要原因",'
-        '"importance":1,"tags":["标签"]}]}。'
+        '"risk":"风险提示","action":"建议动作","importance":1,"tags":["标签"]}]}。'
         "importance 为 1-5，highlights 最多 5 个。"
     )
     response: object = {}
@@ -110,8 +112,12 @@ def build_llm_summary(settings: Settings, items: list[Item], report_date: str = 
 
     parsed = parse_json_object(content)
     if not parsed:
+        summary = fallback_model_summary(content, items, used_model)
+        if is_useful_model_summary(summary):
+            record_llm_job(db_path, job_date, "daily_summary", "ok", used_model, len(selected), "plain text response")
+            return summary
         record_llm_job(db_path, job_date, "daily_summary", "fallback", used_model, len(selected), "non-json content")
-        return fallback_model_summary(content, items, used_model)
+        return summary
     enrich_items(items, parsed)
     overview = str(parsed.get("overview") or "").strip()
     highlights = parsed.get("highlights", [])
@@ -123,6 +129,18 @@ def build_llm_summary(settings: Settings, items: list[Item], report_date: str = 
     prefix = f"LLM 模型：{used_model}\n\n"
     record_llm_job(db_path, job_date, "daily_summary", "ok", used_model, len(selected), "")
     return prefix + (overview or local_daily_summary(items, ""))
+
+
+def configured_model_candidates(section: dict[str, object], model: str) -> list[str]:
+    raw_candidates = [str(row).strip() for row in section.get("model_candidates", []) if str(row).strip()]
+    raw_candidates.insert(0, str(model).strip() or DEFAULT_MIMO_MODEL)
+    uses_mimo = any(candidate.startswith("mimo-") for candidate in raw_candidates)
+    preferred = list(MIMO_MODEL_ORDER) if uses_mimo else []
+    candidates: list[str] = []
+    for candidate in preferred + raw_candidates:
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+    return candidates or [DEFAULT_MIMO_MODEL]
 
 
 def token_budgets(max_tokens: int) -> list[int]:
@@ -201,15 +219,28 @@ def chat_url(base_url: str) -> str:
 
 
 def parse_json_object(content: str) -> dict[str, object]:
-    start = content.find("{")
-    end = content.rfind("}")
-    if start < 0 or end <= start:
-        return {}
-    try:
-        value = json.loads(content[start : end + 1])
-    except json.JSONDecodeError:
-        return {}
-    return value if isinstance(value, dict) else {}
+    text = strip_json_fence(str(content or "").strip())
+    decoder = json.JSONDecoder()
+    for start, char in enumerate(text):
+        if char != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(text[start:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    return {}
+
+
+def strip_json_fence(content: str) -> str:
+    text = content.strip()
+    if not text.startswith("```"):
+        return text
+    lines = text.splitlines()
+    if len(lines) >= 2 and lines[-1].strip().startswith("```"):
+        return "\n".join(lines[1:-1]).strip()
+    return text
 
 
 def fallback_model_summary(content: str, items: list[Item], used_model: str) -> str:
@@ -220,6 +251,11 @@ def fallback_model_summary(content: str, items: list[Item], used_model: str) -> 
     if text and not text.lstrip().startswith(("{", "[")):
         return model_summary(used_model, text)
     return local_daily_summary(items, f"LLM failed: {used_model} returned malformed JSON.")
+
+
+def is_useful_model_summary(summary: str) -> bool:
+    text = str(summary or "").strip()
+    return bool(text.startswith("LLM 模型") and "returned malformed JSON" not in text and "LLM failed" not in text)
 
 
 def extract_json_string_field(content: str, field: str) -> str:
@@ -259,6 +295,13 @@ def enrich_items(items: list[Item], parsed: dict[str, object]) -> None:
             continue
         item.ai_summary = str(row.get("zh_summary") or row.get("summary") or "").strip()
         item.why = str(row.get("why") or "").strip()
+        risk = str(row.get("risk") or "").strip()
+        action = str(row.get("action") or "").strip()
+        if risk:
+            item.raw["llm_risk"] = risk[:300]
+        if action:
+            item.raw["llm_action"] = action[:80]
+        item.raw["llm_generation"] = "daily_summary"
         try:
             item.importance = max(1, min(5, int(row.get("importance") or item.importance or 1)))
         except (TypeError, ValueError):

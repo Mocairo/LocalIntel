@@ -4,7 +4,21 @@ from datetime import date
 
 from app.http import FetchError
 from app.models import Item
-from app.sources import fetch_arxiv
+from app.sources import classify_source_health, fetch_arxiv
+
+
+def test_classify_source_health_distinguishes_empty_degraded_and_failed() -> None:
+    empty = classify_source_health("arxiv", {"limit": 20}, 0, 1.2)
+    degraded = classify_source_health("arxiv", {"limit": 20}, 1, 1.2)
+    ok = classify_source_health("arxiv", {"limit": 20}, 8, 1.2)
+    failed = classify_source_health("arxiv", {"limit": 20}, 0, 1.2, "timeout")
+
+    assert empty["status"] == "empty"
+    assert "返回 0 条" in empty["error"]
+    assert degraded["status"] == "degraded"
+    assert "明显偏少" in degraded["error"]
+    assert ok["status"] == "ok"
+    assert failed["status"] == "failed"
 
 
 def test_fetch_arxiv_falls_back_to_latest_after_dated_timeout(monkeypatch) -> None:

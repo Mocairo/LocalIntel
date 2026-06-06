@@ -72,7 +72,7 @@ def refine_watch_radar_with_llm(
 ) -> list[dict[str, object]]:
     section = settings.section("llm")
     db_path = settings.app_path("data_dir") / "intel.sqlite"
-    model = str(section.get("model", "mimo-v2.5"))
+    model = str(section.get("model", "mimo-v2.5-pro"))
     if not rows or not section.get("enabled", False):
         return rows
 
@@ -166,6 +166,7 @@ def merge_llm_radar(rows: list[dict[str, object]], parsed: dict[str, object]) ->
         summary = clean_text(row.get("summary"))
         if summary:
             target["summary"] = summary[:500]
+            target["generation"] = "llm"
         action = clean_text(row.get("action"))
         if action:
             target["action"] = action[:20]
@@ -197,6 +198,7 @@ def radar_row(target: WatchTarget, items: list[Item], report_date: str) -> dict[
             "status": "active",
             "summary": summary,
             "action": "立即看" if score >= 85 else "持续观察",
+            "generation": "local_rule",
             "confidence": min(1.0, max(0.35, score / 100)),
             "match_count": len(matches),
             "item_hash": item_hash(top),
@@ -211,8 +213,9 @@ def radar_row(target: WatchTarget, items: list[Item], report_date: str) -> dict[
         "name": target.name,
         "type": target.type,
         "status": "quiet",
-        "summary": "今日暂无明显动向。",
+        "summary": quiet_summary(target),
         "action": "持续观察",
+        "generation": "local_rule",
         "confidence": 0.0,
         "match_count": 0,
         "item_hash": "",
@@ -221,6 +224,12 @@ def radar_row(target: WatchTarget, items: list[Item], report_date: str) -> dict[
         "url": "",
         "score": 0.0,
     }
+
+
+def quiet_summary(target: WatchTarget) -> str:
+    keywords = "、".join(target.keywords[:4])
+    description = f"观察范围：{target.description}。" if target.description else ""
+    return f"今日未命中相关证据，系统仍在观察该对象。{description}建议关键词：{keywords}。"
 
 
 def target_matches(target: WatchTarget, item: Item) -> bool:

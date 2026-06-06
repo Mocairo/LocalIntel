@@ -4,9 +4,11 @@ from app.web import DASHBOARD_HTML
 
 
 def test_dashboard_html_has_overview_navigation_and_view_panels() -> None:
-    for view in ("overview", "today", "watch"):
+    for view in ("overview", "today"):
         assert f'data-view-nav="{view}"' in DASHBOARD_HTML
         assert f'data-views="{view}"' in DASHBOARD_HTML
+    assert 'data-view-nav="watch"' not in DASHBOARD_HTML
+    assert 'data-views="watch"' not in DASHBOARD_HTML
     assert 'data-view-nav="sources"' not in DASHBOARD_HTML
     assert 'class="sources-panel"' not in DASHBOARD_HTML
     assert 'view: "overview"' in DASHBOARD_HTML
@@ -20,11 +22,12 @@ def test_dashboard_overview_has_visual_command_center() -> None:
         'id="overviewCategoryPanel"',
         'id="overviewSourcesPanel"',
         'id="overviewTrendPanel"',
-        'id="overviewWeeklyPanel"',
-        'id="overviewWatchPanel"',
         'id="overviewAlertsPanel"',
     ):
         assert marker in DASHBOARD_HTML
+    assert 'id="overviewWeeklyPanel"' not in DASHBOARD_HTML
+    assert 'id="overviewWatchPanel"' not in DASHBOARD_HTML
+    assert 'id="llmPanel"' not in DASHBOARD_HTML
     assert 'id="overviewKpis"' not in DASHBOARD_HTML
     assert 'id="stats"' not in DASHBOARD_HTML
 
@@ -32,7 +35,6 @@ def test_dashboard_overview_has_visual_command_center() -> None:
         "function renderOverviewBrief",
         "function renderOverviewCategoryMix",
         "function renderOverviewSourceHealth",
-        "function renderOverviewWatchBrief",
     ):
         assert function_name in DASHBOARD_HTML
 
@@ -81,7 +83,29 @@ def test_dashboard_cards_and_detail_drawer_are_reader_friendly() -> None:
     assert "-webkit-line-clamp: 2;" in DASHBOARD_HTML
     assert ".detail-actionbar span[data-icon]" in DASHBOARD_HTML
     assert ".detail-actionbar svg" in DASHBOARD_HTML
-    assert "function extractLlmOverview" in DASHBOARD_HTML
+
+
+def test_overview_trend_uses_axis_area_chart() -> None:
+    for marker in (
+        "trend-hero-title",
+        "每日情报趋势",
+        "trend-curve-wrap",
+        "trend-y-axis",
+        "trend-grid",
+        "trendCurveFill",
+        "trendDateTicks",
+    ):
+        assert marker in DASHBOARD_HTML
+
+
+def test_today_cards_do_not_render_risk_or_reading_tip_rows() -> None:
+    judgement_start = DASHBOARD_HTML.index("function renderJudgement")
+    judgement_end = DASHBOARD_HTML.index("async function loadAlerts")
+    judgement_body = DASHBOARD_HTML[judgement_start:judgement_end]
+
+    assert "推荐理由" in judgement_body
+    assert "风险提示" not in judgement_body
+    assert "阅读提示" not in judgement_body
 
 
 def test_dashboard_uses_uupm_inspired_visual_skin() -> None:
@@ -108,17 +132,13 @@ def test_overview_matches_reference_home_layout() -> None:
         'class="topbar-clock"',
         "overview-reference-grid",
         "overview-status-strip",
-        "overview-summary-band",
         "overview-dashboard-grid",
         "overviewHero",
         "overviewTrendPanel",
         "overviewAlertsPanel",
         "overviewCategoryPanel",
         "overviewSourcesPanel",
-        "overviewWeeklyPanel",
-        "overviewWatchPanel",
         "renderOverviewRuntimeStrip",
-        "watch-row-icon",
     ):
         assert marker in DASHBOARD_HTML
 
@@ -136,7 +156,5 @@ def test_overview_uses_unified_icon_system() -> None:
         "function sourceIconTone",
         "overview-category-icon",
         "overview-source-icon",
-        "weekly-stat-icon",
-        "watch-row-icon",
     ):
         assert marker in DASHBOARD_HTML

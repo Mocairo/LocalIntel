@@ -27,6 +27,7 @@ from app.db import (
 )
 from app.pipeline import run_pipeline
 from app.status import build_runtime_status
+from app.watchlist import load_watchlist
 from app.weekly import build_weekly_report
 
 
@@ -107,7 +108,7 @@ class LocalIntelHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/watch-radar":
             params = parse_qs(parsed.query)
-            self.send_json({"watch_radar": load_watch_radar(self.state.db_path, first(params, "date"))})
+            self.send_json({"watch_radar": current_watch_radar(self.state, first(params, "date"))})
             return
         if parsed.path == "/api/watch-radar-history":
             params = parse_qs(parsed.query)
@@ -117,8 +118,10 @@ class LocalIntelHandler(BaseHTTPRequestHandler):
             params = parse_qs(parsed.query)
             detail = load_watch_target_detail(self.state.db_path, first(params, "target"), first(params, "days") or 7)
             if not detail:
-                self.send_error(HTTPStatus.NOT_FOUND, "watch target not found")
-                return
+                detail = fallback_watch_target_detail(self.state, first(params, "target"))
+                if not detail:
+                    self.send_error(HTTPStatus.NOT_FOUND, "watch target not found")
+                    return
             self.send_json(detail)
             return
         if parsed.path == "/api/weekly":
@@ -133,12 +136,13 @@ class LocalIntelHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/stats":
             params = parse_qs(parsed.query)
             report_date = first(params, "date")
+            stats = dashboard_stats(self.state.db_path, report_date)
             self.send_json(
-                dashboard_stats(self.state.db_path, report_date)
+                stats
                 | {
                     "running": self.state.running,
                     "progress": self.state.progress,
-                    "watch_radar": load_watch_radar(self.state.db_path, report_date),
+                    "watch_radar": current_watch_radar(self.state, report_date or str(stats.get("report_date") or "")),
                     "watch_radar_history": load_watch_radar_history(self.state.db_path),
                 }
             )
@@ -280,6 +284,70 @@ class LocalIntelHandler(BaseHTTPRequestHandler):
 def first(params: dict[str, list[str]], key: str) -> str:
     values = params.get(key, [])
     return values[0] if values else ""
+
+
+def current_watch_radar(state: AppState, report_date: str = "") -> list[dict[str, object]]:
+    rows = load_watch_radar(state.db_path, report_date)
+    if rows:
+        return rows
+    return fallback_watch_radar(state, report_date)
+
+
+def fallback_watch_radar(state: AppState, report_date: str = "") -> list[dict[str, object]]:
+    targets = load_watchlist(state.settings.app_path("interests_file"))
+    if not targets:
+        return []
+    checked_date = report_date or latest_report_date(state.db_path)
+    if checked_date:
+        reason = "尚无该日期的雷达缓存。可能是观察清单刚调整，或最近一次更新未生成雷达结果。"
+    else:
+        reason = "尚未运行情报更新。第一次更新会检查这些观察对象。"
+    return [
+        {
+            "target_id": target.id,
+            "name": target.name,
+            "type": target.type,
+            "status": "quiet",
+            "summary": f"{reason} 建议关键词：{'、'.join(target.keywords[:4])}。",
+            "action": "等待下一次更新",
+            "generation": "not_checked",
+            "confidence": 0.0,
+            "match_count": 0,
+            "item_hash": "",
+            "item_title": "",
+            "source": "",
+            "url": "",
+            "score": 0.0,
+        }
+        for target in targets[:6]
+    ]
+
+
+def fallback_watch_target_detail(state: AppState, target_id: str) -> dict[str, object]:
+    target_id = str(target_id or "").strip()
+    if not target_id:
+        return {}
+    rows = [row for row in fallback_watch_radar(state) if row.get("target_id") == target_id]
+    if not rows:
+        return {}
+    row = rows[0]
+    return {
+        "target": {
+            "target_id": row["target_id"],
+            "name": row["name"],
+            "type": row["type"],
+            "latest_status": row["status"],
+            "latest_action": row["action"],
+            "generation": row["generation"],
+            "latest_confidence": 0.0,
+            "latest_match_count": 0,
+            "latest_report_date": latest_report_date(state.db_path),
+            "active_days": 0,
+            "total_matches": 0,
+            "max_confidence": 0.0,
+        },
+        "records": [],
+    }
 
 
 def main() -> None:
@@ -699,7 +767,10 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
     html[data-theme="night"] .source-progress span { background: #131c20; }
     .source-progress span.ok { color: var(--teal); border-color: #acd8cf; }
+    .source-progress span.empty,
+    .source-progress span.degraded { color: var(--amber); border-color: #e9cc91; }
     .source-progress span.error { color: var(--red); border-color: #efb0a8; }
+    .source-progress span.failed { color: var(--red); border-color: #efb0a8; }
     .section-head {
       display: flex;
       justify-content: space-between;
@@ -2746,8 +2817,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       text-align: right;
     }
     .overview-bar-list,
-    .overview-source-list,
-    .overview-watch-list {
+    .overview-source-list {
       display: grid;
       gap: 10px;
     }
@@ -2783,8 +2853,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       font-variant-numeric: tabular-nums;
       text-align: right;
     }
-    .overview-source-row,
-    .overview-watch-row {
+    .overview-source-row {
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 10px;
@@ -2795,14 +2864,12 @@ DASHBOARD_HTML = r"""<!doctype html>
       border-radius: 8px;
       background: #fbfcfc;
     }
-    .overview-source-row strong,
-    .overview-watch-row strong {
+    .overview-source-row strong {
       display: block;
       color: #111827;
       font-size: 13px;
     }
-    .overview-source-row span,
-    .overview-watch-row span {
+    .overview-source-row span {
       display: block;
       margin-top: 2px;
       color: #64748b;
@@ -2823,28 +2890,6 @@ DASHBOARD_HTML = r"""<!doctype html>
       color: var(--amber);
       background: var(--amber-soft);
     }
-    .overview-watch-total {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-      margin-bottom: 10px;
-    }
-    .overview-watch-total span {
-      min-height: 52px;
-      padding: 9px 10px;
-      border: 1px solid #edf1f2;
-      border-radius: 8px;
-      background: #fbfcfc;
-      color: #64748b;
-      font-size: 12px;
-    }
-    .overview-watch-total b {
-      display: block;
-      color: #0f172a;
-      font-size: 22px;
-      line-height: 1.05;
-      font-variant-numeric: tabular-nums;
-    }
     .overview-card .empty {
       min-height: 68px;
       display: grid;
@@ -2857,63 +2902,83 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
     .trend-hero-card {
       display: grid;
-      gap: 14px;
-    }
-    .trend-hero-top {
-      display: flex;
-      justify-content: space-between;
       gap: 12px;
-      align-items: end;
-      color: #64748b;
+    }
+    .trend-hero-title {
+      display: grid;
+      gap: 6px;
+    }
+    .trend-hero-title strong {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #0f172a;
+      font-size: 16px;
+      line-height: 1.2;
+    }
+    .trend-hero-title strong::before {
+      content: "$";
+      color: #10b981;
+      font-size: 17px;
+      font-weight: 900;
+    }
+    .trend-hero-title span {
+      color: #496179;
       font-size: 12px;
     }
-    .trend-hero-top b {
-      display: block;
-      color: #0f172a;
-      font-size: 28px;
-      line-height: 1;
-      font-variant-numeric: tabular-nums;
+    .trend-curve-wrap {
+      position: relative;
+      min-height: 166px;
+      padding-left: 42px;
     }
-    .trend-hero-delta {
-      color: var(--teal);
-      font-weight: 760;
+    .trend-y-axis {
+      position: absolute;
+      inset: 0 auto 26px 0;
+      width: 34px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: #4f6380;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
     }
     .trend-curve-chart {
       width: 100%;
-      height: 220px;
+      height: 140px;
       overflow: visible;
-      border-radius: 8px;
-      background:
-        linear-gradient(180deg, rgba(15, 118, 110, 0.055), rgba(37, 87, 167, 0.025)),
-        repeating-linear-gradient(0deg, transparent 0 52px, rgba(148, 163, 184, 0.13) 53px 54px);
+      background: transparent;
+    }
+    .trend-curve-chart .trend-grid {
+      stroke: #e7edf3;
+      stroke-width: 1;
     }
     .trend-curve-chart .trend-area {
       fill: url(#trendCurveFill);
     }
     .trend-curve-chart .trend-line {
       fill: none;
-      stroke: #0f8f8a;
-      stroke-width: 3.5;
+      stroke: #18a999;
+      stroke-width: 3;
       stroke-linecap: round;
       stroke-linejoin: round;
-      filter: drop-shadow(0 8px 10px rgba(15, 143, 138, 0.16));
+      filter: drop-shadow(0 6px 10px rgba(24, 169, 153, 0.16));
     }
     .trend-curve-chart .trend-dot {
-      fill: #fff;
-      stroke: #0f8f8a;
-      stroke-width: 3;
+      fill: #68cfc4;
+      stroke: #fff;
+      stroke-width: 1.8;
     }
     .trend-hero-scale {
       display: flex;
       justify-content: space-between;
-      color: #64748b;
+      color: #4f6380;
       font-size: 12px;
+      font-variant-numeric: tabular-nums;
     }
     html[data-theme="night"] .overview-hero,
     html[data-theme="night"] .overview-card,
     html[data-theme="night"] .overview-source-row,
-    html[data-theme="night"] .overview-watch-row,
-    html[data-theme="night"] .overview-watch-total span,
     html[data-theme="night"] .overview-card .empty,
     html[data-theme="night"] .overview-action {
       border-color: var(--line);
@@ -2923,16 +2988,14 @@ DASHBOARD_HTML = r"""<!doctype html>
     html[data-theme="night"] .overview-card-head h2,
     html[data-theme="night"] .overview-card-head h3,
     html[data-theme="night"] .overview-source-row strong,
-    html[data-theme="night"] .overview-watch-row strong,
-    html[data-theme="night"] .overview-watch-total b,
-    html[data-theme="night"] .trend-hero-top b {
+    html[data-theme="night"] .trend-hero-title strong {
       color: var(--ink);
     }
     html[data-theme="night"] .overview-hero p,
     html[data-theme="night"] .overview-bar-row,
     html[data-theme="night"] .overview-source-row span,
-    html[data-theme="night"] .overview-watch-row span,
-    html[data-theme="night"] .trend-hero-top,
+    html[data-theme="night"] .trend-hero-title span,
+    html[data-theme="night"] .trend-y-axis,
     html[data-theme="night"] .trend-hero-scale {
       color: var(--muted);
     }
@@ -3599,7 +3662,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       .alerts-grid, .drawer-judgement { grid-template-columns: 1fr; }
     }
     @media (max-width: 760px) {
-      .topbar-inner, .brand-row, .command, .metrics, .cluster-strip, .rail, .config-grid, .watch-target-row, .overview-hero, .overview-watch-total, .today-command, .today-sidebar {
+      .topbar-inner, .brand-row, .command, .metrics, .cluster-strip, .rail, .config-grid, .watch-target-row, .overview-hero, .today-command, .today-sidebar {
         grid-template-columns: 1fr;
       }
       .watch-history-row {
@@ -3808,14 +3871,8 @@ DASHBOARD_HTML = r"""<!doctype html>
       color: #1d4ed8;
     }
 
-    .uupm-skin .trend-curve-chart {
-      background:
-        linear-gradient(180deg, rgba(37, 99, 235, 0.08), rgba(6, 182, 212, 0.025)),
-        repeating-linear-gradient(0deg, transparent 0 54px, rgba(148, 163, 184, 0.15) 55px 56px);
-    }
-
     .uupm-skin .trend-curve-chart .trend-line {
-      stroke: #2563eb;
+      stroke: #18a999;
     }
 
     .uupm-skin .trend-curve-chart .trend-area {
@@ -3823,7 +3880,7 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
 
     .uupm-skin .trend-curve-chart .trend-dot {
-      stroke: #2563eb;
+      stroke: #fff;
     }
 
     .uupm-skin .feed-grid,
@@ -4064,19 +4121,19 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     .overview-reference-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.55fr) minmax(330px, 0.85fr);
-      gap: 16px;
+      grid-template-columns: minmax(0, 1.42fr) minmax(320px, 0.72fr);
+      gap: 12px;
       align-items: start;
     }
 
     .uupm-skin .overview-hero {
-      min-height: 226px;
+      min-height: 188px;
       grid-template-columns: minmax(0, 1fr) auto;
-      grid-template-rows: auto 64px;
+      grid-template-rows: auto minmax(54px, auto);
       grid-column: 1;
-      gap: 14px;
-      padding: 20px 24px;
-      border-radius: 12px;
+      gap: 10px;
+      padding: 16px 20px;
+      border-radius: 10px;
       background: linear-gradient(135deg, #eef6ff 0%, #f7fbff 58%, #ffffff 100%);
       box-shadow: 0 12px 34px rgba(29, 78, 216, 0.08);
     }
@@ -4093,14 +4150,14 @@ DASHBOARD_HTML = r"""<!doctype html>
       color: #0f172a;
       -webkit-text-fill-color: initial;
       background: none;
-      font-size: 28px;
+      font-size: 24px;
       letter-spacing: 0;
     }
 
     .uupm-skin .overview-hero p {
       max-width: 720px;
-      font-size: 14px;
-      line-height: 1.58;
+      font-size: 13px;
+      line-height: 1.55;
     }
 
     .uupm-skin .overview-actions {
@@ -4110,7 +4167,7 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     .uupm-skin .overview-action {
       min-width: 96px;
-      height: 44px;
+      height: 40px;
       justify-content: center;
       border-radius: 8px;
     }
@@ -4119,7 +4176,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       grid-column: 1 / -1;
       display: grid;
       grid-template-columns: repeat(6, minmax(0, 1fr));
-      min-height: 64px;
+      min-height: 54px;
       border: 1px solid rgba(203, 213, 225, 0.72);
       border-radius: 10px;
       background: rgba(255, 255, 255, 0.78);
@@ -4130,8 +4187,8 @@ DASHBOARD_HTML = r"""<!doctype html>
       display: grid;
       grid-template-columns: 28px minmax(0, 1fr);
       align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
+      gap: 8px;
+      padding: 8px 10px;
       border-left: 1px solid rgba(226, 232, 240, 0.9);
     }
 
@@ -4159,9 +4216,9 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     .overview-status-item b {
       display: block;
-      margin-bottom: 5px;
+      margin-bottom: 3px;
       color: #64748b;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 650;
     }
 
@@ -4169,7 +4226,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       display: block;
       overflow: hidden;
       color: #0f8f8a;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 800;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -4178,21 +4235,17 @@ DASHBOARD_HTML = r"""<!doctype html>
     .overview-trend-panel {
       grid-column: 2;
       grid-row: 1;
-      height: 226px;
-      min-height: 226px;
+      height: 206px;
+      min-height: 206px;
       overflow: hidden;
     }
 
     .overview-trend-panel .trend-hero-card {
-      gap: 8px;
-    }
-
-    .overview-trend-panel .trend-hero-top b {
-      font-size: 26px;
+      gap: 10px;
     }
 
     .overview-trend-panel .trend-curve-chart {
-      height: 132px;
+      height: 124px;
     }
 
     .uupm-skin .overview-card,
@@ -4210,26 +4263,16 @@ DASHBOARD_HTML = r"""<!doctype html>
     .overview-summary-band {
       grid-column: 1 / -1;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 220px;
-      align-items: center;
-      min-height: 76px;
-      padding: 14px 22px 14px 92px;
+      grid-template-columns: minmax(0, 1fr);
+      align-items: start;
+      min-height: auto;
+      padding: 14px 18px;
       position: relative;
       overflow: hidden;
     }
 
     .llm-badge {
-      position: absolute;
-      left: 22px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 42px;
-      height: 42px;
-      display: grid;
-      place-items: center;
-      border-radius: 50%;
-      color: #4f46e5;
-      background: #eef2ff;
+      display: none;
     }
 
     .llm-badge svg {
@@ -4242,31 +4285,191 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
 
     .uupm-skin .llm-panel pre {
-      margin-top: 4px;
+      margin-top: 6px;
       max-height: 42px;
-      font-size: 13px;
-      line-height: 1.65;
+      font-size: 12px;
+      line-height: 1.55;
       white-space: pre-wrap;
     }
 
+    .briefing-answer {
+      margin: 4px 0 8px;
+      color: #0f172a;
+      font-size: 14px;
+      font-weight: 760;
+      line-height: 1.45;
+    }
+
+    .briefing-headlines {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .briefing-line {
+      min-height: 0;
+      padding: 9px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #fbfdff;
+    }
+
+    .briefing-line strong {
+      display: -webkit-box;
+      margin-bottom: 6px;
+      overflow: hidden;
+      color: #0f172a;
+      font-size: 14px;
+      line-height: 1.35;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .briefing-line p {
+      display: -webkit-box;
+      margin: 0;
+      overflow: hidden;
+      color: #475569;
+      font-size: 12px;
+      line-height: 1.5;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .briefing-meta,
+    .briefing-actions,
+    .briefing-jobs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 6px;
+      color: #64748b;
+      font-size: 11px;
+    }
+
+    .briefing-meta span,
+    .briefing-actions button,
+    .briefing-jobs span,
+    #briefingGeneration {
+      min-height: 24px;
+      padding: 3px 7px;
+      border: 1px solid #dbe5ea;
+      border-radius: 999px;
+      background: #fff;
+      color: #475569;
+      line-height: 1.35;
+    }
+
+    .briefing-actions button {
+      height: 24px;
+      font-size: 11px;
+    }
+
+    .briefing-actions button:hover {
+      transform: none;
+      box-shadow: none;
+    }
+
+    #briefingGeneration.llm-ok {
+      color: #0f766e;
+      border-color: #a7f3d0;
+      background: #ecfdf5;
+    }
+
+    #briefingGeneration.local-fallback {
+      color: #9a650d;
+      border-color: #f4d8a4;
+      background: #fffbeb;
+    }
+
     .overview-summary-band .sparkline {
-      justify-self: end;
-      width: 210px;
-      height: 64px;
-      opacity: 0.45;
+      display: none;
     }
 
     .overview-dashboard-grid {
       grid-column: 1 / -1;
       display: grid;
-      grid-template-columns: minmax(0, 1.45fr) minmax(310px, 0.72fr) minmax(310px, 0.78fr);
-      gap: 16px;
+      grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr);
+      gap: 12px;
+      align-items: start;
     }
 
     #overviewAlertsPanel {
       display: block;
-      min-height: 314px;
+      grid-column: 1;
+      grid-row: 1;
+      min-height: 0;
       padding: 18px 20px;
+    }
+
+    #overviewWorldPanel {
+      grid-column: 1;
+      grid-row: 2;
+      min-height: 0;
+    }
+
+    #overviewCategoryPanel {
+      grid-column: 2;
+      grid-row: 2;
+    }
+
+    #overviewSourcesPanel {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    #overviewSourcesPanel .overview-source-list {
+      gap: 8px;
+    }
+
+    #overviewSourcesPanel .overview-source-row {
+      min-height: 42px;
+      padding: 7px 10px;
+    }
+
+    #overviewSourcesPanel .overview-source-row span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .overview-world-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .world-row {
+      padding: 10px 0;
+      border-bottom: 1px solid #edf2f4;
+    }
+
+    .world-row:last-child {
+      border-bottom: 0;
+    }
+
+    .world-row a {
+      display: block;
+      color: #0f172a;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 780;
+      line-height: 1.4;
+    }
+
+    .world-row p {
+      display: -webkit-box;
+      margin: 5px 0;
+      overflow: hidden;
+      color: #475569;
+      font-size: 12px;
+      line-height: 1.5;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .world-row small {
+      color: #64748b;
+      font-size: 11px;
     }
 
     .uupm-skin .alerts-grid {
@@ -4275,7 +4478,7 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
 
     .alert-card {
-      min-height: 108px;
+      min-height: 96px;
       border-radius: 8px;
       background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
     }
@@ -4286,9 +4489,7 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
 
     .overview-category-icon,
-    .overview-source-icon,
-    .weekly-stat-icon,
-    #overviewWatchPanel .watch-row-icon {
+    .overview-source-icon {
       display: grid;
       place-items: center;
       border-radius: 50%;
@@ -4303,9 +4504,7 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
 
     .overview-category-icon svg,
-    .overview-source-icon svg,
-    .weekly-stat-icon svg,
-    #overviewWatchPanel .watch-row-icon svg {
+    .overview-source-icon svg {
       stroke: currentColor;
       fill: none;
       stroke-linecap: round;
@@ -4354,8 +4553,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       background: linear-gradient(90deg, #1d6cff, #3b82f6);
     }
 
-    .overview-source-row,
-    .overview-watch-row {
+    .overview-source-row {
       min-height: 48px;
       padding: 9px 10px;
       border: 1px solid rgba(226, 232, 240, 0.88);
@@ -4367,8 +4565,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       grid-template-columns: 30px minmax(0, 1fr) auto;
     }
 
-    .overview-source-row strong,
-    .overview-watch-row strong {
+    .overview-source-row strong {
       color: #0f172a;
     }
 
@@ -4378,118 +4575,14 @@ DASHBOARD_HTML = r"""<!doctype html>
       background: #dff8ee;
     }
 
-    #overviewWeeklyPanel {
-      grid-column: 1 / span 1;
+    .overview-status-pill.warn {
+      color: #9a650d;
+      background: #fff3d6;
     }
 
-    #overviewWatchPanel {
-      grid-column: 2 / span 2;
-    }
-
-    #overviewWeeklyPanel .overview-card-head,
-    #overviewWatchPanel .overview-card-head {
-      align-items: start;
-      margin-bottom: 14px;
-    }
-
-    .weekly-card {
-      display: grid;
-      gap: 14px;
-      box-shadow: none;
-    }
-
-    .weekly-stats {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-
-    #overviewWeeklyPanel .weekly-head {
-      display: flex;
-      align-items: baseline;
-      gap: 12px;
-      justify-content: flex-start;
-    }
-
-    #overviewWeeklyPanel .weekly-head a {
-      color: #0f172a;
-      font-size: 16px;
-      font-weight: 850;
-    }
-
-    #overviewWeeklyPanel .weekly-stats span {
-      min-height: 78px;
-      border-radius: 8px;
-      background: #fbfdff;
-    }
-
-    #overviewWeeklyPanel .weekly-stats span i {
-      width: 32px;
-      height: 32px;
-      margin: 0 auto 8px;
-    }
-
-    #overviewWeeklyPanel .weekly-stats span i svg {
-      width: 18px;
-      height: 18px;
-      stroke: currentColor;
-      fill: none;
-    }
-
-    #overviewWatchPanel .overview-watch-total {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 18px;
-      margin-bottom: 10px;
-    }
-
-    #overviewWatchPanel .overview-watch-total span {
-      min-height: 38px;
-      display: grid;
-      grid-template-columns: 34px auto minmax(0, 1fr);
-      align-items: center;
-      gap: 8px;
-      border-color: rgba(191, 219, 254, 0.95);
-      background: linear-gradient(90deg, #eef6ff, #ffffff);
-    }
-
-    #overviewWatchPanel .overview-watch-total span::before {
-      content: "";
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: #dff8ee;
-    }
-
-    #overviewWatchPanel .overview-watch-total b {
-      margin: 0;
-      color: #0f172a;
-      font-size: 18px;
-    }
-
-    #overviewWatchPanel .overview-watch-total em {
-      color: #64748b;
-      font-style: normal;
-      font-size: 12px;
-    }
-
-    #overviewWatchPanel .overview-watch-list {
-      gap: 8px;
-    }
-
-    #overviewWatchPanel .overview-watch-row {
-      min-height: 36px;
-      padding: 7px 10px;
-      grid-template-columns: 28px minmax(0, 1fr) auto;
-    }
-
-    #overviewWatchPanel .watch-row-icon {
-      width: 22px;
-      height: 22px;
-    }
-
-    #overviewWatchPanel .watch-row-icon svg {
-      width: 14px;
-      height: 14px;
-      stroke: currentColor;
-      fill: none;
+    .overview-status-pill.fail {
+      color: #b42318;
+      background: #fde7e4;
     }
 
     @media (max-width: 1180px) {
@@ -4499,7 +4592,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       }
 
       .uupm-dashboard-frame {
-        padding: 88px 16px 24px;
+        padding: 16px 16px 24px;
       }
 
       .uupm-skin .rail {
@@ -4508,13 +4601,27 @@ DASHBOARD_HTML = r"""<!doctype html>
         margin-bottom: 16px;
       }
 
+      .uupm-skin .dashboard-layout {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .uupm-skin .main-area {
+        order: 1;
+        padding-top: 0;
+      }
+
+      .uupm-skin .rail {
+        order: 2;
+      }
+
       body.uupm-skin.sidebar-collapsed .topbar {
         left: 0;
         width: 100%;
       }
 
       body.uupm-skin.sidebar-collapsed .uupm-dashboard-frame {
-        padding: 88px 16px 24px;
+        padding: 16px 16px 24px;
       }
 
       body.uupm-skin.sidebar-collapsed .rail {
@@ -4527,15 +4634,123 @@ DASHBOARD_HTML = r"""<!doctype html>
         grid-template-columns: 1fr;
       }
 
+      .overview-summary-band {
+        grid-template-columns: 1fr;
+        padding-right: 18px;
+      }
+
+      .briefing-headlines {
+        grid-template-columns: 1fr;
+      }
+
+      .overview-summary-band .sparkline {
+        display: none;
+      }
+
       .overview-trend-panel,
       .overview-summary-band,
-      #overviewWeeklyPanel,
-      #overviewWatchPanel {
+      #overviewAlertsPanel,
+      #overviewWorldPanel,
+      #overviewCategoryPanel,
+      #overviewSourcesPanel {
         grid-column: 1;
+        grid-row: auto;
       }
 
       .overview-status-strip {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .uupm-skin .topbar-inner {
+        min-height: 0;
+        padding: 10px 16px;
+        gap: 10px;
+      }
+
+      .topbar-clock {
+        font-size: 13px;
+      }
+
+      .top-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+      }
+
+      .top-actions .icon-action {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .uupm-skin .overview-hero {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        min-height: auto;
+        padding: 16px;
+      }
+
+      .uupm-skin .overview-hero p {
+        max-width: 100%;
+      }
+
+      .uupm-skin .overview-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+        padding-top: 0;
+      }
+
+      .uupm-skin .overview-action {
+        width: 100%;
+        min-width: 0;
+      }
+
+      .overview-status-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .overview-status-item:nth-child(2),
+      .overview-status-item:nth-child(5) {
+        display: none;
+      }
+
+      .briefing-headlines,
+      .uupm-skin .alerts-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .briefing-headlines {
+        display: flex;
+        overflow-x: auto;
+        padding-bottom: 2px;
+        scroll-snap-type: x proximity;
+      }
+
+      .briefing-line {
+        min-width: 280px;
+        scroll-snap-align: start;
+      }
+
+      .overview-status-item {
+        border-top: 1px solid rgba(226, 232, 240, 0.9);
+      }
+
+      .overview-status-item:nth-child(odd) {
+        border-left: 0;
+      }
+
+      .overview-status-item:nth-child(-n + 2) {
+        border-top: 0;
+      }
+
+      .overview-status-item:last-child {
+        grid-column: auto;
+      }
+
+      .overview-status-item span:not(.overview-status-icon) {
+        white-space: normal;
       }
     }
   </style>
@@ -4580,7 +4795,6 @@ DASHBOARD_HTML = r"""<!doctype html>
           <div class="view-nav" id="viewNav">
             <button class="view-nav-btn active" data-view-nav="overview" type="button"><span data-icon="grid"></span><b>概览</b><small>总体、摘要、提醒</small></button>
             <button class="view-nav-btn" data-view-nav="today" type="button"><span data-icon="doc"></span><b>今日情报</b><small>筛选、主线、列表</small></button>
-            <button class="view-nav-btn" data-view-nav="watch" type="button"><span data-icon="target"></span><b>观察雷达</b><small>对象走势和详情</small></button>
           </div>
         </section>
         <button class="sidebar-collapse" id="sidebarCollapseBtn" type="button">收起侧栏</button>
@@ -4593,11 +4807,11 @@ DASHBOARD_HTML = r"""<!doctype html>
               <div class="overview-hero-copy">
                 <span class="overview-kicker">今日总控台</span>
                 <h2 class="uupm-gradient-title">情报态势概览</h2>
-                <p id="overviewBrief">正在读取今天的情报状态、来源健康和观察雷达。</p>
+                <p id="overviewBrief">正在读取今天的情报状态、来源健康和高价值信号。</p>
               </div>
               <div class="overview-actions" aria-label="概览快捷入口">
                 <button class="overview-action primary" data-overview-go="today" type="button"><span data-icon="doc"></span>今日情报</button>
-                <button class="overview-action" data-overview-go="watch" type="button"><span data-icon="target"></span>观察雷达</button>
+                <button class="overview-action" data-overview-go="today" type="button"><span data-icon="list"></span>查看列表</button>
               </div>
               <div class="overview-status-strip" id="overviewStatusStrip"></div>
             </section>
@@ -4608,17 +4822,6 @@ DASHBOARD_HTML = r"""<!doctype html>
               </div>
               <div class="trend" id="overviewTrend"></div>
             </section>
-            <section class="llm-panel overview-summary-band" id="llmPanel">
-              <div class="llm-badge"><span data-icon="sparkles"></span></div>
-              <div class="llm-copy">
-                <div class="llm-head">
-                  <h2>今日摘要</h2>
-                  <span id="llmTime"></span>
-                </div>
-                <pre id="llmSummary"></pre>
-              </div>
-              <div class="sparkline" aria-hidden="true"></div>
-            </section>
             <div class="overview-dashboard-grid" aria-label="主页看板">
               <section class="alerts-panel overview-signals" id="overviewAlertsPanel">
                 <div class="alerts-head">
@@ -4626,6 +4829,13 @@ DASHBOARD_HTML = r"""<!doctype html>
                   <span id="alertsNote">规则筛选，模型判断</span>
                 </div>
                 <div class="alerts-grid" id="alerts"></div>
+              </section>
+              <section class="overview-card" id="overviewWorldPanel">
+                <div class="overview-card-head">
+                  <h3>全球时事中文摘要</h3>
+                  <span id="overviewWorldNote">等待数据</span>
+                </div>
+                <div class="overview-world-list" id="overviewWorldRows"></div>
               </section>
               <section class="overview-card" id="overviewCategoryPanel">
                 <div class="overview-card-head">
@@ -4641,20 +4851,6 @@ DASHBOARD_HTML = r"""<!doctype html>
                 </div>
                 <div class="overview-source-list" id="overviewSourceRows"></div>
               </section>
-              <section class="overview-card" id="overviewWeeklyPanel">
-                <div class="overview-card-head">
-                  <h3>本周沉淀</h3>
-                  <span>周报摘要</span>
-                </div>
-                <div class="weekly" id="overviewWeekly"></div>
-              </section>
-              <section class="overview-card" id="overviewWatchPanel">
-                <div class="overview-card-head">
-                  <h3>观察雷达</h3>
-                  <span id="overviewWatchNote">等待数据</span>
-                </div>
-                <div id="overviewWatchSummary"></div>
-              </section>
             </div>
           </div>
         </section>
@@ -4665,15 +4861,6 @@ DASHBOARD_HTML = r"""<!doctype html>
           </div>
           <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
           <div class="source-progress" id="sourceProgress"></div>
-        </section>
-
-        <section class="watch-panel" id="watchPanel" data-views="watch">
-          <div class="watch-head">
-            <h2>观察雷达</h2>
-            <span id="watchNote">长期关注对象的动态</span>
-          </div>
-          <div class="watch-grid" id="watchRadar"></div>
-          <div class="watch-history" id="watchHistory"></div>
         </section>
 
         <section class="today-workbench" id="todayWorkbench" data-views="today">
@@ -4797,7 +4984,7 @@ DASHBOARD_HTML = r"""<!doctype html>
         <div class="field"><label>每天运行时间</label><input id="cfgDailyTime" placeholder="08:30"></div>
         <div class="field"><label>抓取最近几天</label><input id="cfgDaysBack" type="number" min="1"></div>
         <div class="field"><label>GitHub Trending 周期</label><select id="cfgTrendingSince"><option value="daily">daily</option><option value="weekly">weekly</option><option value="monthly">monthly</option></select></div>
-        <div class="field"><label>全球时事翻译 API</label><select id="cfgTranslationProvider"><option value="public">public</option><option value="mimo">mimo</option></select></div>
+        <div class="field"><label>全球时事翻译 API</label><select id="cfgTranslationProvider"><option value="llm">LLM / MiMO</option><option value="public">public</option></select></div>
         <div class="field"><label>LLM 分析条目数</label><input id="cfgLlmMaxItems" type="number" min="1" max="100"></div>
         <div class="field"><label>LLM 输出 Token 上限</label><input id="cfgLlmMaxTokens" type="number" min="1000" step="1000"></div>
         <div class="field"><label>GitHub Trending 语言</label><textarea id="cfgTrendingLanguages"></textarea></div>
@@ -4978,20 +5165,17 @@ DASHBOARD_HTML = r"""<!doctype html>
       const run = data.run || {};
       const reportDate = state.date || data.report_date || "";
       $("subtitle").textContent = reportDate ? `${reportDate} · 北京时间 ${formatBeijingClock(run.created_at || "")}` : "暂无日报";
-      $("llmTime").textContent = run.created_at ? `生成时间：${formatShortBeijingTime(run.created_at)}` : "";
       $("runBtn").innerHTML = `<span data-icon="refresh">${iconSvg("refresh")}</span>${data.running ? "更新中" : "更新情报"}`;
       $("runBtn").disabled = !!data.running;
       renderOverviewBrief(data);
+      renderWorldBriefing(data.briefing || {});
       renderOverviewCategoryMix(data.category_counts || []);
       renderOverviewSourceHealth(data.source_health || []);
-      renderOverviewWatchBrief(data);
-      renderLlmSummary(run.llm_summary || "");
       renderRunProgress(data.progress || {});
       renderBucketTabs(data.bucket_counts || []);
       renderReadTabs(data.read_status_counts || []);
       renderCategories(data.category_counts || []);
       renderHealth(data.source_health || []);
-      renderWatchRadar(data);
     }
 
     async function loadRuntimeStatus() {
@@ -5012,7 +5196,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       const sourceRows = lastRun.source_health || [];
       const failedSources = sourceRows.filter((row) => row.status !== "ok");
       const sourceText = sourceRows.length
-        ? `${sourceRows.length - failedSources.length}/${sourceRows.length} 正常`
+        ? `${sourceRows.length - failedSources.length}/${sourceRows.length} 正常 · ${failedSources.map((row) => `${sourceName(row.source)} ${sourceHealthLabel(row.status)}`).slice(0, 2).join("、") || "无异常"}`
         : "暂无来源记录";
       const dashboardStatus = data.web?.status || data.dashboard?.status;
       const cards = [
@@ -5074,7 +5258,7 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     function processClass(status) {
       if (["running", "listening", "ok"].includes(status)) return "runtime-ok";
-      if (["not_tracked", "not_initialized"].includes(status)) return "runtime-warn";
+      if (["not_tracked", "not_initialized", "degraded", "empty"].includes(status)) return "runtime-warn";
       return "runtime-error";
     }
 
@@ -5111,12 +5295,33 @@ DASHBOARD_HTML = r"""<!doctype html>
       const clusters = Number(data.cluster_count || 0);
       const sources = data.source_health || [];
       const failed = sources.filter((row) => row.status !== "ok").length;
-      const radar = data.watch_radar || [];
-      const activeRadar = radar.filter((row) => row.status === "active").length;
       const date = state.date || data.report_date || "今日";
-      const llm = llmState(run.llm_summary || "");
+      const generation = data.briefing?.generation || {};
+      const llm = generation.mode === "llm"
+        ? "已生成"
+        : (generation.mode === "local_fallback" ? "已回退为本地简报" : llmState(run.llm_summary || ""));
       const sourceText = sources.length ? `来源 ${sources.length - failed}/${sources.length} 正常` : "暂无来源记录";
-      $("overviewBrief").textContent = `${date} 已整理 ${total} 条有效情报，聚合 ${clusters} 条事件主线，${sourceText}，观察雷达 ${activeRadar}/${radar.length} 个对象有动向，LLM 摘要${llm}。`;
+      const firstHeadline = data.briefing?.headlines?.[0]?.title || "";
+      $("overviewBrief").textContent = firstHeadline
+        ? `${date} 今天最重要的是：${firstHeadline}。已整理 ${total} 条有效情报，聚合 ${clusters} 条主线，${sourceText}，AI 简报${llm}。`
+        : `${date} 已整理 ${total} 条有效情报，聚合 ${clusters} 条事件主线，${sourceText}，AI 简报${llm}。`;
+    }
+
+    function renderWorldBriefing(briefing) {
+      const rows = briefing.world_news || [];
+      const visibleRows = rows.slice(0, 3);
+      $("overviewWorldNote").textContent = rows.length ? `${visibleRows.length}/${rows.length} 条中文优先` : "暂无全球时事";
+      $("overviewWorldRows").innerHTML = visibleRows.length ? visibleRows.map((row) => {
+        const translated = isTranslated(row);
+        const title = translated ? (row.title || row.original_title || "全球时事") : (row.original_title || row.title || "全球时事");
+        const summary = translated ? (row.summary || "暂无中文摘要") : "待 LLM 翻译，已保留原文供核验。";
+        return `
+        <article class="world-row">
+          <a href="${esc(row.url || "#")}" target="_blank" rel="noreferrer" data-open="${esc(row.hash || "")}">${esc(title)}</a>
+          <p>${esc(summary)}</p>
+          <small>${esc(translationStatusLabel(row.translation_status))} · 原文：${esc(row.original_title || row.title || "")}</small>
+        </article>
+      `; }).join("") : "<div class='empty'>暂无全球时事中文摘要</div>";
     }
 
     function renderOverviewCategoryMix(counts) {
@@ -5142,104 +5347,29 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     function renderOverviewSourceHealth(rows) {
       const list = rows || [];
-      const failed = list.filter((row) => row.status !== "ok");
+      const failed = list.filter((row) => !["ok"].includes(row.status));
       $("overviewSourceNote").textContent = list.length
-        ? `${list.length - failed.length}/${list.length} 正常`
+        ? `${list.length - failed.length}/${list.length} 正常，${failed.length} 个需关注`
         : "暂无来源记录";
       $("overviewSourceRows").innerHTML = list.length ? list.map((row) => {
-        const ok = row.status === "ok";
+        const className = sourceHealthClass(row.status);
         return `
           <div class="overview-source-row">
             <span class="overview-source-icon tone-${esc(sourceIconTone(row.source))}">${iconSvg(sourceIconName(row.source))}</span>
             <div>
               <strong>${esc(sourceName(row.source))}</strong>
-              <span>${ok ? "抓取正常" : "需要检查"} · ${esc(row.count || 0)} 条</span>
+              <span>${esc(sourceHealthText(row))}</span>
             </div>
-            <span class="overview-status-pill ${ok ? "" : "warn"}">${esc(ok ? "正常" : "异常")}</span>
+            <span class="overview-status-pill ${esc(className)}">${esc(sourceHealthLabel(row.status))}</span>
           </div>
         `;
       }).join("") : "<div class='empty'>暂无来源记录</div>";
-    }
-
-    function renderOverviewWatchBrief(data) {
-      const rows = data.watch_radar || [];
-      const activeRows = rows.filter((row) => row.status === "active");
-      $("overviewWatchNote").textContent = rows.length ? `${activeRows.length}/${rows.length} 有动向` : "暂无观察对象";
-      if (!rows.length) {
-        $("overviewWatchSummary").innerHTML = "<div class='empty'>暂无观察雷达数据</div>";
-        return;
-      }
-      const activeHtml = activeRows.slice(0, 3).map((row) => `
-        <div class="overview-watch-row">
-          <span class="watch-row-icon tone-blue">${iconSvg("target")}</span>
-          <div>
-            <strong>${esc(row.name || row.target_id || "观察对象")}</strong>
-            <span>${esc(row.action || row.summary || "持续观察")} · 命中 ${esc(row.match_count || 0)} 条</span>
-          </div>
-          <span class="overview-status-pill">有动向</span>
-        </div>
-      `).join("");
-      const quietHtml = rows.filter((row) => row.status !== "active").slice(0, Math.max(0, 3 - activeRows.length)).map((row) => `
-        <div class="overview-watch-row">
-          <span class="watch-row-icon tone-purple">${iconSvg("target")}</span>
-          <div>
-            <strong>${esc(row.name || row.target_id || "观察对象")}</strong>
-            <span>${esc(row.summary || "暂未命中值得提醒的变化")}</span>
-          </div>
-          <span class="overview-status-pill warn">观察中</span>
-        </div>
-      `).join("");
-      $("overviewWatchSummary").innerHTML = `
-        <div class="overview-watch-total">
-          <span><b>${esc(activeRows.length)}</b><em>有动向</em></span>
-          <span><b>${esc(rows.length - activeRows.length)}</b><em>观察中</em></span>
-        </div>
-        <div class="overview-watch-list">${activeHtml || quietHtml ? activeHtml + quietHtml : "<div class='empty'>暂无观察雷达数据</div>"}</div>
-      `;
     }
 
     function llmState(summary) {
       if (!summary) return "未生成";
       if (summary.startsWith("LLM failed") || summary.startsWith("LLM skipped")) return "已回退";
       return "已生成";
-    }
-
-    function renderLlmSummary(summary) {
-      const raw = String(summary || "").trim();
-      const text = cleanLlmSummary(raw);
-      if (!text) {
-        $("llmPanel").classList.remove("show");
-        $("llmSummary").textContent = "";
-        return;
-      }
-      $("llmPanel").classList.add("show");
-      $("llmSummary").textContent = text;
-      $("llmSummary").className = raw.startsWith("LLM failed") || raw.startsWith("LLM skipped") ? "llm-muted" : "";
-    }
-
-    function cleanLlmSummary(summary) {
-      const lines = String(summary || "")
-        .split(/\r?\n/)
-        .filter((line) => !/^LLM\s*(模型|model)\s*[:：]/i.test(line.trim()));
-      const overview = extractLlmOverview(lines.join("\n"));
-      if (overview) return overview;
-      if (/^LLM\s*(failed|skipped)/i.test((lines[0] || "").trim())) {
-        const fallbackIndex = lines.findIndex((line) => line.trim().startsWith("本地规则"));
-        if (fallbackIndex >= 0) return lines.slice(fallbackIndex).join("\n").trim();
-        return "LLM 暂不可用，已使用本地规则摘要。";
-      }
-      const text = lines.join("\n").trim();
-      return text.length > 360 ? `${text.slice(0, 359).trim()}...` : text;
-    }
-
-    function extractLlmOverview(text) {
-      const match = String(text || "").match(/"overview"\s*:\s*"((?:\\.|[^"\\])*)"/s);
-      if (!match) return "";
-      try {
-        return JSON.parse(`"${match[1]}"`).trim();
-      } catch {
-        return match[1].trim();
-      }
     }
 
     function renderRunProgress(progress) {
@@ -5254,9 +5384,9 @@ DASHBOARD_HTML = r"""<!doctype html>
       $("progressFill").style.width = `${percent}%`;
       const sources = progress.sources || {};
       $("sourceProgress").innerHTML = Object.entries(sources).map(([source, row]) => {
-        const statusClass = row.status === "ok" ? "ok" : (row.status === "error" ? "error" : "");
+        const statusClass = row.status === "failed" || row.status === "error" ? "failed" : (row.status || "");
         const count = Number(row.count || 0);
-        const suffix = row.status === "running" ? "进行中" : `${row.status || ""}${count ? ` · ${count}` : ""}`;
+        const suffix = row.status === "running" ? "进行中" : `${sourceHealthLabel(row.status)}${count ? ` · ${count} 条` : ""}${row.message ? ` · ${row.message}` : ""}`;
         return `<span class="${statusClass}">${esc(source)} · ${esc(suffix)}</span>`;
       }).join("");
     }
@@ -5342,61 +5472,6 @@ DASHBOARD_HTML = r"""<!doctype html>
       if (overviewHealth && !rows.length) overviewHealth.innerHTML = html;
     }
 
-    function renderWatchRadar(data) {
-      const rows = data.watch_radar || [];
-      const historyRows = data.watch_radar_history || [];
-      $("watchPanel").classList.toggle("show", rows.length > 0 || historyRows.length > 0);
-      $("watchNote").textContent = rows.length ? `${rows.length} 个观察对象` : "长期关注对象的动态";
-      const grid = $("watchRadar");
-      grid.className = `watch-grid count-${Math.min(rows.length, 6)}`;
-      grid.innerHTML = rows.length ? rows.map((row) => `
-        <article class="watch-card">
-          <strong>${esc(row.status === "active" ? "有变化" : "暂无动向")}</strong>
-          <button class="watch-target-link" data-watch-target="${esc(row.target_id || "")}" type="button">${esc(row.name || row.target_id || "观察对象")}</button>
-          <p>${esc(row.summary || "")}</p>
-          <p>${esc(row.action || "持续观察")} · 命中 ${esc(row.match_count || 0)} 条 · 置信度 ${Math.round(Number(row.confidence || 0) * 100)}%</p>
-          ${row.url ? `<a class="watch-item-link" href="${esc(row.url)}" target="_blank" rel="noreferrer" data-open="${esc(row.item_hash || "")}">代表条目：${esc(row.item_title || "打开原文")}</a>` : ""}
-        </article>
-      `).join("") : "";
-      renderWatchHistory(historyRows);
-    }
-
-    function renderWatchHistory(rows) {
-      const panel = $("watchHistory");
-      if (!rows.length) {
-        panel.classList.remove("show");
-        panel.innerHTML = "";
-        return;
-      }
-      panel.classList.add("show");
-      panel.innerHTML = `
-        <div class="watch-history-head">
-          <h3>近 7 次走势</h3>
-          <span>${esc(rows.length)} 个观察对象</span>
-        </div>
-        ${rows.map((row) => `
-          <button class="watch-history-row" data-watch-target="${esc(row.target_id || "")}" type="button">
-            <div class="watch-history-name">
-              <strong>${esc(row.name || row.target_id || "观察对象")}</strong>
-              <span>${esc(row.latest_status === "active" ? "最近有变化" : "最近暂无动向")} · ${esc(row.latest_action || "持续观察")}</span>
-            </div>
-            <div class="watch-dots">${renderWatchDots(row.history || [])}</div>
-            <div class="watch-history-meta">
-              活跃 ${esc(row.active_days || 0)} 天 · 命中 ${esc(row.total_matches || 0)} 条 · 置信度 ${Math.round(Number(row.max_confidence || 0) * 100)}%
-            </div>
-          </button>
-        `).join("")}
-      `;
-    }
-
-    function renderWatchDots(history) {
-      return history.map((point) => {
-        const active = point.status === "active";
-        const title = `${point.report_date || ""} · ${active ? "有变化" : "暂无动向"} · 命中 ${point.match_count || 0} 条 · 置信度 ${Math.round(Number(point.confidence || 0) * 100)}%`;
-        return `<span class="watch-dot ${active ? "active" : ""}" title="${esc(title)}"></span>`;
-      }).join("");
-    }
-
     function sourceName(source) {
       return {
         arxiv: "arXiv",
@@ -5415,6 +5490,58 @@ DASHBOARD_HTML = r"""<!doctype html>
       }[source] || sourceName(source);
     }
 
+    function sourceHealthLabel(status) {
+      return {
+        ok: "正常",
+        empty: "0 条",
+        degraded: "偏少",
+        failed: "失败",
+        error: "失败",
+        running: "进行中",
+        skipped: "跳过"
+      }[status] || status || "未知";
+    }
+
+    function sourceHealthClass(status) {
+      if (status === "ok") return "";
+      if (status === "failed" || status === "error") return "fail";
+      return "warn";
+    }
+
+    function sourceHealthText(row) {
+      if (row.error) return row.error;
+      if (row.status === "ok") return `抓取正常 · ${row.count || 0} 条`;
+      if (row.status === "empty") return `${sourceName(row.source)} 返回 0 条，可能是查询条件过窄或 API 暂无结果。`;
+      if (row.status === "degraded") return `结果明显偏少 · ${row.count || 0} 条，可能部分请求失败。`;
+      if (row.status === "failed" || row.status === "error") return `请求失败 · ${row.count || 0} 条`;
+      return `${sourceHealthLabel(row.status)} · ${row.count || 0} 条`;
+    }
+
+    function translationStatusLabel(status) {
+      return {
+        llm: "LLM 翻译",
+        public: "公共翻译",
+        public_fallback: "公共翻译回退",
+        local_fallback: "待 LLM 翻译",
+        unavailable: "待翻译"
+      }[status] || "翻译状态未知";
+    }
+
+    function isTranslated(row) {
+      const status = row.translation_status || "";
+      const text = `${row.title || ""} ${row.summary || ""}`;
+      const hasChinese = /[\u4e00-\u9fff]/.test(text);
+      return ["llm", "public", "public_fallback"].includes(status) && hasChinese;
+    }
+
+    function generationLabel(value) {
+      return {
+        llm: "LLM 解释",
+        local_rule: "本地规则",
+        not_checked: "等待检查"
+      }[value] || "本地规则";
+    }
+
     function showToast(message, sticky = false) {
       $("toast").textContent = message;
       $("toast").classList.add("show");
@@ -5430,7 +5557,7 @@ DASHBOARD_HTML = r"""<!doctype html>
         if (!state.stats.running) {
           clearInterval(state.pollTimer);
           state.pollTimer = null;
-          await Promise.all([loadClusters(), loadItems(), loadTrends(), loadWeekly(), loadAlerts()]);
+          await Promise.all([loadClusters(), loadItems(), loadTrends(), loadAlerts()]);
           showToast("重跑完成，页面已刷新。");
         }
       }, 5000);
@@ -5449,32 +5576,41 @@ DASHBOARD_HTML = r"""<!doctype html>
       const total = Number(latest.deduped_total || 0);
       const delta = total - Number(previous.deduped_total || total);
       const values = rows.map((row) => Number(row.deduped_total || 0));
-      const points = trendChartPoints(values, 420, 188);
+      const maxValue = Math.max(...values, 1);
+      const yMax = Math.max(4, Math.ceil(maxValue / 4) * 4);
+      const yTicks = [yMax, Math.round(yMax * 0.75), Math.round(yMax * 0.5), Math.round(yMax * 0.25), 0];
+      const points = trendChartPoints(values, 420, 128, 0, yMax);
       const curvePath = smoothCurvePath(points);
-      const baseline = 206;
+      const baseline = 118;
       const firstPoint = points[0] || { x: 0, y: baseline };
       const lastPoint = points[points.length - 1] || { x: 420, y: baseline };
       const areaPath = `${curvePath} L ${lastPoint.x},${baseline} L ${firstPoint.x},${baseline} Z`;
-      const dots = points.map((point) => `<circle class="trend-dot" cx="${point.x}" cy="${point.y}" r="4.5"></circle>`).join("");
+      const gridLines = [14, 40, 66, 92, 118].map((y) => `<line class="trend-grid" x1="0" x2="420" y1="${y}" y2="${y}"></line>`).join("");
+      const trendDateTicks = rows.map((row) => `<span>${esc(row.report_date?.slice(5) || "")}</span>`).join("");
+      const dots = points.map((point) => `<circle class="trend-dot" cx="${point.x}" cy="${point.y}" r="3.2"></circle>`).join("");
       const html = `
         <div class="trend-hero-card">
-          <div class="trend-hero-top">
-            <div><b>${esc(total)}</b><small>有效情报</small></div>
-            <span class="trend-hero-delta">较昨日 ${delta >= 0 ? "+" : ""}${esc(delta)}</span>
+          <div class="trend-hero-title">
+            <strong>每日情报趋势</strong>
+            <span>近 7 天有效情报变化 · 当前 ${esc(total)} 条 · 较昨日 ${delta >= 0 ? "+" : ""}${esc(delta)}</span>
           </div>
-          <svg class="trend-curve-chart" viewBox="0 0 420 220" preserveAspectRatio="none" role="img" aria-label="近 7 天有效情报趋势">
-            <defs>
-              <linearGradient id="trendCurveFill" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stop-color="#2563eb" stop-opacity="0.24"></stop>
-                <stop offset="72%" stop-color="#06b6d4" stop-opacity="0.07"></stop>
-                <stop offset="100%" stop-color="#ffffff" stop-opacity="0"></stop>
-              </linearGradient>
-            </defs>
-            <path class="trend-area" d="${esc(areaPath)}"></path>
-            <path class="trend-line" d="${esc(curvePath)}"></path>
-            ${dots}
-          </svg>
-          <div class="trend-hero-scale"><span>${esc(rows[0]?.report_date?.slice(5) || "")}</span><span>${esc(latest.report_date?.slice(5) || "")}</span></div>
+          <div class="trend-curve-wrap">
+            <div class="trend-y-axis">${yTicks.map((tick) => `<span>${esc(tick)}</span>`).join("")}</div>
+            <svg class="trend-curve-chart" viewBox="0 0 420 128" preserveAspectRatio="none" role="img" aria-label="近 7 天有效情报趋势">
+              <defs>
+                <linearGradient id="trendCurveFill" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#18a999" stop-opacity="0.26"></stop>
+                  <stop offset="74%" stop-color="#18a999" stop-opacity="0.07"></stop>
+                  <stop offset="100%" stop-color="#ffffff" stop-opacity="0"></stop>
+                </linearGradient>
+              </defs>
+              ${gridLines}
+              <path class="trend-area" d="${esc(areaPath)}"></path>
+              <path class="trend-line" d="${esc(curvePath)}"></path>
+              ${dots}
+            </svg>
+            <div class="trend-hero-scale">${trendDateTicks}</div>
+          </div>
         </div>
       `;
       $("overviewTrend").innerHTML = html;
@@ -5499,14 +5635,14 @@ DASHBOARD_HTML = r"""<!doctype html>
       return list.slice(-7);
     }
 
-    function trendChartPoints(values, width, height) {
+    function trendChartPoints(values, width, height, forcedMin = null, forcedMax = null) {
       const rows = values.length ? values : [0];
-      const max = Math.max(...rows, 1);
-      const min = Math.min(...rows, 0);
+      const max = forcedMax ?? Math.max(...rows, 1);
+      const min = forcedMin ?? Math.min(...rows, 0);
       const range = Math.max(1, max - min);
       const padX = 12;
       const padTop = 18;
-      const padBottom = 18;
+      const padBottom = 10;
       return rows.map((value, index) => {
         const x = rows.length === 1 ? width / 2 : padX + (index / (rows.length - 1)) * (width - padX * 2);
         const y = padTop + (1 - (value - min) / range) * (height - padTop - padBottom);
@@ -5554,46 +5690,6 @@ DASHBOARD_HTML = r"""<!doctype html>
         const y = height - ((value - min) / range * (height - 20) + 10);
         return { x: x.toFixed(1), y: y.toFixed(1) };
       });
-    }
-
-    async function loadWeekly() {
-      const params = new URLSearchParams();
-      if (state.date) params.set("date", state.date);
-      const query = params.toString();
-      const data = await api(`/api/weekly${query ? `?${query}` : ""}`);
-      renderWeekly(data.weekly || {});
-    }
-
-    function renderWeekly(weekly) {
-      if (!weekly.week_id) {
-        const empty = "<div class='empty'>暂无周报</div>";
-        $("overviewWeekly").innerHTML = empty;
-        return;
-      }
-      const tags = (weekly.top_tags || []).slice(0, 6).map((row) => `<span>${esc(row.tag)} · ${esc(row.count)}</span>`).join("");
-      const must = findCount(weekly.bucket_counts || [], "must");
-      const unread = findCount(weekly.read_status_counts || [], "unread");
-      const html = `
-        <article class="weekly-card">
-          <div class="weekly-head">
-            <a href="${esc(weekly.html_url || "#")}" target="_blank" rel="noreferrer">${esc(weekly.week_id)} 周报</a>
-            <div class="weekly-meta">${esc(weekly.label || "")}</div>
-          </div>
-          <div class="weekly-stats">
-            <span><i class="weekly-stat-icon tone-blue">${iconSvg("doc")}</i><b>${esc(weekly.active_total || 0)}</b><em>有效条目</em></span>
-            <span><i class="weekly-stat-icon tone-green">${iconSvg("check")}</i><b>${esc((weekly.report_dates || []).length)}</b><em>覆盖日报</em></span>
-            <span><i class="weekly-stat-icon tone-orange">${iconSvg("star")}</i><b>${esc(must)}</b><em>必看</em></span>
-            <span><i class="weekly-stat-icon tone-purple">${iconSvg("ban")}</i><b>${esc(unread)}</b><em>未读</em></span>
-          </div>
-          <div class="weekly-tags">${tags || "<span>暂无热词</span>"}</div>
-        </article>
-      `;
-      $("overviewWeekly").innerHTML = html;
-    }
-
-    function findCount(rows, key) {
-      const row = rows.find((item) => item.key === key);
-      return row ? Number(row.count || 0) : 0;
     }
 
     async function loadClusters() {
@@ -5657,6 +5753,9 @@ DASHBOARD_HTML = r"""<!doctype html>
       const cluster = Number(item.cluster_size || 1) > 1 ? ` · 事件组 ${item.cluster_size}` : "";
       const sourceLabel = sourceName(item.source);
       const sourceShortLabel = sourceShortName(item.source);
+      const title = displayTitle(item);
+      const original = item.original_title && item.original_title !== title ? item.original_title : "";
+      const translation = item.category === "world_news" ? ` · ${translationStatusLabel(item.translation_status)}` : "";
       return `
         <article class="intel-card" data-hash="${esc(item.hash)}" data-category="${esc(item.category || "general")}" data-bucket="${esc(item.bucket || "scan")}">
           <div class="card-top">
@@ -5665,11 +5764,12 @@ DASHBOARD_HTML = r"""<!doctype html>
             <span class="read-pill ${esc(item.read_status || "unread")}">${esc(readLabels[item.read_status] || "未读")}</span>
             <span class="score">rank ${esc(index + 1)}</span>
           </div>
-          <h3><a href="${esc(item.url)}" target="_blank" rel="noreferrer" data-open="${esc(item.hash)}">${esc(item.title)}</a></h3>
+          <h3><a href="${esc(item.url)}" target="_blank" rel="noreferrer" data-open="${esc(item.hash)}">${esc(title)}</a></h3>
+          ${original ? `<p class="meta">原文标题：${esc(original)}</p>` : ""}
           <p class="summary">${esc(summary)}</p>
           ${judgement}
           <div class="tags">${tags}</div>
-          <div class="meta">${esc(labels[item.category] || item.category)} · importance ${esc(item.importance || 0)}/5${cluster}<br>${esc(item.published_at || "")}</div>
+          <div class="meta">${esc(labels[item.category] || item.category)} · importance ${esc(item.importance || 0)}/5${cluster}${esc(translation)}<br>${esc(item.published_at || "")}</div>
           <div class="card-actions">
             <button data-action="detail"><span data-icon="list">${iconSvg("list")}</span>详情</button>
             <button data-action="later"><span data-icon="star">${iconSvg("star")}</span>${item.read_status === "later" ? "取消稍后" : "稍后看"}</button>
@@ -5689,10 +5789,13 @@ DASHBOARD_HTML = r"""<!doctype html>
       };
     }
 
+    function displayTitle(item) {
+      return item.zh_title || item.title || "未命名条目";
+    }
+
     function renderJudgement(judgement, extraClass = "") {
       const rows = [
-        ["推荐理由", judgement.recommendation || "暂无推荐理由"],
-        ["阅读提示", judgement.caveat || judgement.risk || ""]
+        ["推荐理由", judgement.recommendation || "暂无推荐理由"]
       ].filter(([, value]) => String(value || "").trim());
       return `<div class="judgement-grid ${esc(extraClass)}">${rows.map(([label, value]) => `
         <div class="judgement-row"><b>${esc(label)}：</b><span>${esc(value)}</span></div>
@@ -5739,11 +5842,13 @@ DASHBOARD_HTML = r"""<!doctype html>
       const data = await api(`/api/item?${params}`);
       const item = data.item || {};
       const related = data.related || [];
-      $("detailTitle").innerHTML = `<a href="${esc(item.url || "#")}" target="_blank" rel="noreferrer" data-open="${esc(item.hash || "")}">${esc(item.title || "详情")}</a>`;
+      const title = displayTitle(item);
+      const original = item.original_title && item.original_title !== title ? item.original_title : "";
+      $("detailTitle").innerHTML = `<a href="${esc(item.url || "#")}" target="_blank" rel="noreferrer" data-open="${esc(item.hash || "")}">${esc(title || "详情")}</a>`;
       $("detailBody").innerHTML = `
         <div class="detail-shell">
           <section class="detail-hero">
-            <h3>${esc(item.title || "详情")}</h3>
+            <h3>${esc(title || "详情")}</h3>
             <div class="detail-meta">
               <span>${esc(readLabels[item.read_status] || "未读")}</span>
               <span>${esc(bucketLabels[item.bucket] || "可扫")}</span>
@@ -5751,7 +5856,9 @@ DASHBOARD_HTML = r"""<!doctype html>
               <span>${esc(sourceName(item.source) || item.source)}</span>
               <span>rank ${Number(item.rank_score || 0).toFixed(1)}</span>
               <span>importance ${esc(item.importance || 0)}/5</span>
+              ${item.category === "world_news" ? `<span>${esc(translationStatusLabel(item.translation_status))}</span>` : ""}
             </div>
+            ${original ? `<p class="detail-text">原文标题：${esc(original)}</p>` : ""}
             <div class="tags">${(item.tags || []).map((tag) => `<span>${esc(tag)}</span>`).join("")}</div>
             <div class="detail-actionbar">
               <button data-detail-action="later"><span data-icon="star">${iconSvg("star")}</span>${item.read_status === "later" ? "取消稍后" : "稍后看"}</button>
@@ -5779,7 +5886,7 @@ DASHBOARD_HTML = r"""<!doctype html>
               </section>
               <section class="detail-card">
                 <h3>相关条目</h3>
-                <div class="related-list">${related.length ? related.map((row) => `<button data-related-hash="${esc(row.hash)}">${esc(row.title)}</button>`).join("") : "<div class='empty'>暂无相关条目</div>"}</div>
+                <div class="related-list">${related.length ? related.map((row) => `<button data-related-hash="${esc(row.hash)}">${esc(displayTitle(row))}</button>`).join("") : "<div class='empty'>暂无相关条目</div>"}</div>
               </section>
             </aside>
           </div>
@@ -5801,7 +5908,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       $("detailBody").innerHTML = `
         <div class="drawer-section">
           <div class="meta">
-            ${esc(watchStatusLabel(target.latest_status))} · ${esc(target.latest_action || "持续观察")} · 最近 ${esc(target.latest_report_date || "-")} · 活跃 ${esc(target.active_days || 0)} 天 · 命中 ${esc(target.total_matches || 0)} 条 · 最高置信度 ${Math.round(Number(target.max_confidence || 0) * 100)}%
+            ${esc(watchStatusLabel(target.latest_status))} · ${esc(target.latest_action || "持续观察")} · 最近 ${esc(target.latest_report_date || "-")} · 活跃 ${esc(target.active_days || 0)} 天 · 命中 ${esc(target.total_matches || 0)} 条 · 最高置信度 ${Math.round(Number(target.max_confidence || 0) * 100)}% · ${esc(generationLabel(target.generation))}
           </div>
         </div>
         <div class="drawer-section">
@@ -5827,7 +5934,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       return `
         <div class="watch-detail-record">
           <b>${esc(record.report_date || "-")} · ${esc(watchStatusLabel(record.status))} · ${esc(record.action || "持续观察")}</b>
-          <div class="meta">命中 ${esc(record.match_count || 0)} 条 · 置信度 ${esc(confidence)}% · ${esc(sourceName(record.source || ""))} · score ${Number(record.score || 0).toFixed(1)}</div>
+          <div class="meta">命中 ${esc(record.match_count || 0)} 条 · 置信度 ${esc(confidence)}% · ${esc(sourceName(record.source || ""))} · score ${Number(record.score || 0).toFixed(1)} · ${esc(generationLabel(record.generation))}</div>
           <p>${esc(record.summary || "暂无摘要")}</p>
           ${compact ? `<p>${itemLink}</p>` : itemLink}
         </div>
@@ -5881,7 +5988,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       $("cfgRssEnabled").checked = !!config.rss?.enabled;
       $("cfgLlmEnabled").checked = !!config.llm?.enabled;
       $("cfgTranslationEnabled").checked = !!config.translation?.enabled;
-      $("cfgTranslationProvider").value = config.translation?.provider || "public";
+      $("cfgTranslationProvider").value = config.translation?.provider || "llm";
       $("cfgLlmMaxItems").value = config.llm?.max_items || 40;
       $("cfgLlmMaxTokens").value = config.llm?.max_tokens || 8000;
       $("cfgTrendingSince").value = config.github?.trending_since || "daily";
@@ -6066,7 +6173,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       } catch {
         saved = "overview";
       }
-      setView(saved, false);
+      setView(saved === "watch" ? "overview" : saved, false);
     }
 
     function loadSidebarPreference() {
@@ -6095,7 +6202,7 @@ DASHBOARD_HTML = r"""<!doctype html>
     }
 
     function setView(view, persist = true) {
-      const next = ["overview", "today", "watch"].includes(view) ? view : "overview";
+      const next = ["overview", "today"].includes(view) ? view : "overview";
       state.view = next;
       document.querySelectorAll("[data-view-nav]").forEach((button) => {
         button.classList.toggle("active", button.dataset.viewNav === next);
@@ -6117,13 +6224,13 @@ DASHBOARD_HTML = r"""<!doctype html>
       await loadDates();
       await loadStats();
       await safeLoadRuntimeStatus();
-      await Promise.all([loadClusters(), loadItems(), loadTrends(), loadWeekly(), loadAlerts()]);
+      await Promise.all([loadClusters(), loadItems(), loadTrends(), loadAlerts()]);
     }
 
     $("dateSelect").addEventListener("change", async (event) => {
       state.date = event.target.value;
       await loadStats();
-      await Promise.all([loadClusters(), loadItems(), loadWeekly(), loadAlerts()]);
+      await Promise.all([loadClusters(), loadItems(), loadAlerts()]);
     });
     $("categorySelect").addEventListener("change", async (event) => {
       state.category = event.target.value;
@@ -6225,7 +6332,9 @@ DASHBOARD_HTML = r"""<!doctype html>
       if (button) setView(button.dataset.overviewGo || "overview");
     });
     $("runBtn").addEventListener("click", async () => {
-      showToast("已开始更新情报，后台正在抓取和整理。", true);
+      const ok = window.confirm("更新情报会触发真实网络抓取、全球时事翻译、LLM 摘要/推荐、写入本地数据库，并生成报告。过程可能消耗 API 额度，是否继续？");
+      if (!ok) return;
+      showToast("已开始更新情报：抓取、翻译、LLM 摘要、入库和报告生成正在后台运行。", true);
       await api("/api/run", { method: "POST" });
       await loadStats();
       await safeLoadRuntimeStatus();
@@ -6240,20 +6349,6 @@ DASHBOARD_HTML = r"""<!doctype html>
       }
       const button = event.target.closest("button[data-cluster-hash]");
       if (button) await openDetail(button.dataset.clusterHash);
-    });
-    $("watchRadar").addEventListener("click", async (event) => {
-      const openLink = event.target.closest("a[data-open]");
-      if (openLink) {
-        await recordEvent(openLink.dataset.open, "open");
-        setTimeout(refresh, 800);
-        return;
-      }
-      const target = event.target.closest("[data-watch-target]");
-      if (target) await openWatchTargetDetail(target.dataset.watchTarget);
-    });
-    $("watchHistory").addEventListener("click", async (event) => {
-      const target = event.target.closest("[data-watch-target]");
-      if (target) await openWatchTargetDetail(target.dataset.watchTarget);
     });
     $("items").addEventListener("click", async (event) => {
       const openLink = event.target.closest("a[data-open]");

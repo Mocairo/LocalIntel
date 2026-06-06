@@ -62,7 +62,7 @@ def run_pipeline(
     stats["raw_total"] = len(raw_items)
     stats["deduped_total"] = len(items)
     emit_progress(progress, "translate", "正在翻译全球时事", 60)
-    translation_error = translate_world_news(settings, items)
+    translation_error = translate_world_news(settings, items, day.isoformat())
     if translation_error:
         stats.setdefault("errors", []).append(f"translation: {translation_error}")
 
@@ -120,7 +120,7 @@ def main() -> None:
     items = apply_feedback_scores(db_path, rank_items(dedupe_items(raw_items), preferences, day))
     stats["raw_total"] = len(raw_items)
     stats["deduped_total"] = len(items)
-    translation_error = translate_world_news(settings, items)
+    translation_error = translate_world_news(settings, items, day.isoformat())
     if translation_error:
         stats.setdefault("errors", []).append(f"translation: {translation_error}")
     llm_summary = build_llm_summary(settings, items, day.isoformat())
