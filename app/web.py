@@ -18,6 +18,7 @@ from app.db import (
     list_report_dates,
     load_dashboard_clusters,
     load_dashboard_items,
+    load_intel_briefing,
     load_watch_radar,
     load_watch_radar_history,
     load_watch_target_detail,
@@ -114,6 +115,11 @@ class LocalIntelHandler(BaseHTTPRequestHandler):
             params = parse_qs(parsed.query)
             self.send_json({"watch_radar_history": load_watch_radar_history(self.state.db_path, first(params, "days") or 7)})
             return
+        if parsed.path == "/api/intel-briefing":
+            params = parse_qs(parsed.query)
+            briefing = load_intel_briefing(self.state.db_path, first(params, "date"))
+            self.send_json({"briefing": briefing})
+            return
         if parsed.path == "/api/watch-target":
             params = parse_qs(parsed.query)
             detail = load_watch_target_detail(self.state.db_path, first(params, "target"), first(params, "days") or 7)
@@ -144,6 +150,7 @@ class LocalIntelHandler(BaseHTTPRequestHandler):
                     "progress": self.state.progress,
                     "watch_radar": current_watch_radar(self.state, report_date or str(stats.get("report_date") or "")),
                     "watch_radar_history": load_watch_radar_history(self.state.db_path),
+                    "intel_briefing": load_intel_briefing(self.state.db_path, report_date or str(stats.get("report_date") or "")),
                 }
             )
             return
@@ -4232,6 +4239,76 @@ DASHBOARD_HTML = r"""<!doctype html>
       white-space: nowrap;
     }
 
+    .intel-briefing-panel {
+      grid-column: 1 / -1;
+      padding: 22px 24px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--panel) 0%, rgba(15, 118, 110, 0.04) 100%);
+      box-shadow: var(--shadow-soft);
+    }
+    html[data-theme="night"] .intel-briefing-panel {
+      background: linear-gradient(135deg, var(--panel) 0%, rgba(75, 214, 196, 0.06) 100%);
+    }
+    .intel-briefing-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .intel-briefing-head h2 {
+      margin: 0;
+      font-size: 16px;
+      color: var(--teal);
+      letter-spacing: 0;
+    }
+    #intelBriefingMeta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .intel-briefing-headline {
+      margin: 0 0 10px;
+      font-size: 19px;
+      font-weight: 700;
+      line-height: 1.35;
+      color: var(--ink);
+    }
+    .intel-briefing-analysis {
+      margin: 0 0 12px;
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--ink);
+      white-space: pre-wrap;
+    }
+    .intel-briefing-watch {
+      font-size: 13px;
+      color: var(--muted);
+      padding: 8px 12px;
+      border-radius: 7px;
+      background: var(--teal-soft);
+      display: inline-block;
+    }
+    .intel-briefing-placeholder {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 0;
+    }
+    .trend-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+    .trend-badge.new { color: var(--teal); background: var(--teal-soft); }
+    .trend-badge.rising { color: var(--amber); background: var(--amber-soft); }
+    .trend-badge.sustained { color: var(--blue); background: var(--blue-soft); }
+    .trend-badge.fading { color: var(--muted); background: rgba(98, 113, 125, 0.12); }
+
     .overview-trend-panel {
       grid-column: 2;
       grid-row: 1;
@@ -4391,15 +4468,16 @@ DASHBOARD_HTML = r"""<!doctype html>
       display: grid;
       grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr);
       gap: 12px;
-      align-items: start;
+      align-items: stretch;
     }
 
     #overviewAlertsPanel {
-      display: block;
+      display: grid;
       grid-column: 1;
       grid-row: 1;
       min-height: 0;
       padding: 18px 20px;
+      align-content: start;
     }
 
     #overviewWorldPanel {
@@ -4815,6 +4893,15 @@ DASHBOARD_HTML = r"""<!doctype html>
               </div>
               <div class="overview-status-strip" id="overviewStatusStrip"></div>
             </section>
+            <section class="intel-briefing-panel overview-card overview-wide" id="intelBriefingPanel">
+              <div class="intel-briefing-head">
+                <h2>情报官日评</h2>
+                <span id="intelBriefingMeta"></span>
+              </div>
+              <div id="intelBriefingContent">
+                <p class="intel-briefing-placeholder">正在加载情报分析...</p>
+              </div>
+            </section>
             <section class="overview-card overview-trend-panel overview-wide" id="overviewTrendPanel">
               <div class="overview-card-head">
                 <h3>近期趋势</h3>
@@ -4984,7 +5071,7 @@ DASHBOARD_HTML = r"""<!doctype html>
         <div class="field"><label>每天运行时间</label><input id="cfgDailyTime" placeholder="08:30"></div>
         <div class="field"><label>抓取最近几天</label><input id="cfgDaysBack" type="number" min="1"></div>
         <div class="field"><label>GitHub Trending 周期</label><select id="cfgTrendingSince"><option value="daily">daily</option><option value="weekly">weekly</option><option value="monthly">monthly</option></select></div>
-        <div class="field"><label>全球时事翻译 API</label><select id="cfgTranslationProvider"><option value="llm">LLM / MiMO</option><option value="public">public</option></select></div>
+        <div class="field"><label>全球时事翻译 API</label><select id="cfgTranslationProvider"><option value="llm">LLM / OpenAI-compatible</option><option value="public">public</option></select></div>
         <div class="field"><label>LLM 分析条目数</label><input id="cfgLlmMaxItems" type="number" min="1" max="100"></div>
         <div class="field"><label>LLM 输出 Token 上限</label><input id="cfgLlmMaxTokens" type="number" min="1000" step="1000"></div>
         <div class="field"><label>GitHub Trending 语言</label><textarea id="cfgTrendingLanguages"></textarea></div>
@@ -5018,7 +5105,8 @@ DASHBOARD_HTML = r"""<!doctype html>
       viewMode: "grid",
       configLoaded: false,
       pollTimer: null,
-      stats: {}
+      stats: {},
+      intelBriefingSignals: []
     };
 
     const labels = {
@@ -5168,6 +5256,7 @@ DASHBOARD_HTML = r"""<!doctype html>
       $("runBtn").innerHTML = `<span data-icon="refresh">${iconSvg("refresh")}</span>${data.running ? "更新中" : "更新情报"}`;
       $("runBtn").disabled = !!data.running;
       renderOverviewBrief(data);
+      renderIntelBriefing(data);
       renderWorldBriefing(data.briefing || {});
       renderOverviewCategoryMix(data.category_counts || []);
       renderOverviewSourceHealth(data.source_health || []);
@@ -5305,6 +5394,46 @@ DASHBOARD_HTML = r"""<!doctype html>
       $("overviewBrief").textContent = firstHeadline
         ? `${date} 今天最重要的是：${firstHeadline}。已整理 ${total} 条有效情报，聚合 ${clusters} 条主线，${sourceText}，AI 简报${llm}。`
         : `${date} 已整理 ${total} 条有效情报，聚合 ${clusters} 条事件主线，${sourceText}，AI 简报${llm}。`;
+    }
+
+    const TREND_BADGE_MAP = {
+      new: { label: "新信号", cls: "new" },
+      rising: { label: "升温", cls: "rising" },
+      sustained: { label: "持续", cls: "sustained" },
+      fading: { label: "冷却", cls: "fading" },
+    };
+
+    function renderIntelBriefing(data) {
+      const briefing = data.intel_briefing || {};
+      const panel = $("intelBriefingPanel");
+      const content = $("intelBriefingContent");
+      const meta = $("intelBriefingMeta");
+      if (!briefing.headline) {
+        panel.style.display = "none";
+        return;
+      }
+      panel.style.display = "";
+      const model = briefing.model || "";
+      const gen = briefing.generation === "llm" ? "LLM" : "本地规则";
+      meta.textContent = `${gen}${model ? " · " + esc(model) : ""}`;
+      let html = `<p class="intel-briefing-headline">${esc(briefing.headline)}</p>`;
+      if (briefing.analysis) {
+        html += `<p class="intel-briefing-analysis">${esc(briefing.analysis)}</p>`;
+      }
+      if (briefing.watch_digest) {
+        html += `<div class="intel-briefing-watch">${esc(briefing.watch_digest)}</div>`;
+      }
+      content.innerHTML = html;
+      state.intelBriefingSignals = briefing.signals || [];
+    }
+
+    function trendBadge(clusterId) {
+      const signals = state.intelBriefingSignals || [];
+      const sig = signals.find((s) => s.cluster_id === clusterId);
+      if (!sig || !sig.trend) return "";
+      const info = TREND_BADGE_MAP[sig.trend];
+      if (!info) return "";
+      return ` <span class="trend-badge ${info.cls}">${esc(info.label)}</span>`;
     }
 
     function renderWorldBriefing(briefing) {
@@ -5706,7 +5835,7 @@ DASHBOARD_HTML = r"""<!doctype html>
         const heat = Math.max(60, Math.min(99, Math.round(Number(cluster.score || 0))));
         return `
         <article class="cluster-card" data-category="${esc(cluster.category || "general")}">
-          <div class="cluster-kicker">主线 · ${String(index + 1).padStart(2, "0")}</div>
+          <div class="cluster-kicker">主线 · ${String(index + 1).padStart(2, "0")}${trendBadge(cluster.cluster_id || "")}</div>
           <h3><a href="${esc(cluster.top_url || "#")}" target="_blank" rel="noreferrer" data-open="${esc(cluster.top_hash || "")}">${esc(cluster.title)}</a></h3>
           <p>${esc(cluster.explanation || cluster.summary || "暂无解释")}</p>
           <div class="cluster-heat">热度 ${esc(heat)}</div>

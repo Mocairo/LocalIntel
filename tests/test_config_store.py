@@ -29,7 +29,7 @@ trending_languages = [""]
 
 [llm]
 enabled = true
-model = "mimo-v2.5"
+model = "gpt-5.4"
 max_items = 3
 max_tokens = 4000
 """.strip()

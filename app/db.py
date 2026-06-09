@@ -160,6 +160,17 @@ CREATE TABLE IF NOT EXISTS watch_radar (
 
 CREATE INDEX IF NOT EXISTS idx_watch_radar_date_score ON watch_radar(report_date, score DESC);
 CREATE INDEX IF NOT EXISTS idx_watch_radar_target_date ON watch_radar(target_id, report_date);
+
+CREATE TABLE IF NOT EXISTS intel_briefings (
+    report_date TEXT NOT NULL PRIMARY KEY,
+    headline TEXT NOT NULL DEFAULT '',
+    analysis TEXT NOT NULL DEFAULT '',
+    signals_json TEXT NOT NULL DEFAULT '[]',
+    watch_digest TEXT NOT NULL DEFAULT '',
+    generation TEXT NOT NULL DEFAULT 'local_rule',
+    model TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 ITEM_EXTRA_COLUMNS = {
@@ -1379,3 +1390,88 @@ def row_to_detail_dict(row: sqlite3.Row) -> dict[str, object]:
         }
     )
     return item
+
+
+def save_intel_briefing(
+    path: Path,
+    report_date: str,
+    headline: str,
+    analysis: str,
+    signals: list[dict[str, str]],
+    watch_digest: str,
+    generation: str = "local_rule",
+    model: str = "",
+) -> None:
+    init_db(path)
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            """
+            INSERT INTO intel_briefings (report_date, headline, analysis, signals_json, watch_digest, generation, model)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(report_date) DO UPDATE SET
+                headline=excluded.headline,
+                analysis=excluded.analysis,
+                signals_json=excluded.signals_json,
+                watch_digest=excluded.watch_digest,
+                generation=excluded.generation,
+                model=excluded.model,
+                created_at=datetime('now')
+            """,
+            (report_date, headline, analysis, json.dumps(signals, ensure_ascii=False), watch_digest, generation, model),
+        )
+
+
+def load_intel_briefing(path: Path, report_date: str = "") -> dict[str, object]:
+    init_db(path)
+    if not report_date:
+        report_date = latest_report_date(path)
+    if not report_date:
+        return {}
+    with sqlite3.connect(path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT * FROM intel_briefings WHERE report_date = ?", (report_date,)
+        ).fetchone()
+    if not row:
+        return {}
+    try:
+        signals = json.loads(row["signals_json"] or "[]")
+    except json.JSONDecodeError:
+        signals = []
+    return {
+        "report_date": row["report_date"],
+        "headline": row["headline"],
+        "analysis": row["analysis"],
+        "signals": signals,
+        "watch_digest": row["watch_digest"],
+        "generation": row["generation"],
+        "model": row["model"],
+    }
+
+
+def load_historical_cluster_keywords(path: Path, before_date: str, days: int = 7) -> dict[str, list[dict[str, object]]]:
+    init_db(path)
+    with sqlite3.connect(path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT report_date, cluster_id, title, category, score, explanation
+            FROM clusters
+            WHERE report_date < ? AND report_date >= date(?, ? || ' days')
+            ORDER BY report_date DESC, score DESC
+            """,
+            (before_date, before_date, f"-{days}"),
+        ).fetchall()
+    result: dict[str, list[dict[str, object]]] = {}
+    for row in rows:
+        rd = row["report_date"]
+        result.setdefault(rd, []).append(
+            {
+                "cluster_id": row["cluster_id"],
+                "title": row["title"],
+                "category": row["category"],
+                "score": row["score"],
+                "explanation": row["explanation"] or "",
+            }
+        )
+    return result

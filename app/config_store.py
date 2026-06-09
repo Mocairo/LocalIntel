@@ -42,14 +42,14 @@ def read_ui_config(settings: Settings) -> dict[str, object]:
         },
         "llm": {
             "enabled": settings.section("llm").get("enabled", True),
-            "model": settings.section("llm").get("model", "mimo-v2.5-pro"),
+            "model": settings.section("llm").get("model", "gpt-5.4"),
             "max_items": settings.section("llm").get("max_items", 40),
             "max_tokens": settings.section("llm").get("max_tokens", 8000),
         },
         "translation": {
             "enabled": settings.section("translation").get("enabled", True),
             "provider": settings.section("translation").get("provider", "llm"),
-            "model": settings.section("translation").get("model", "mimo-v2.5-pro"),
+            "model": settings.section("translation").get("model", "gpt-5.4"),
             "max_items": settings.section("translation").get("max_items", 20),
         },
         "interests": {

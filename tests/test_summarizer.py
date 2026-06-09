@@ -58,13 +58,13 @@ def test_build_llm_summary_extracts_overview_from_truncated_json(monkeypatch, tm
     assert len(summary) < 160
 
 
-def test_mimo_model_candidates_prefer_pro() -> None:
+def test_model_candidates_use_configured_openai_model_first() -> None:
     candidates = configured_model_candidates(
-        {"model": "mimo-v2.5", "model_candidates": ["mimo-v2.5", "mimo-v2.5-pro"]},
-        "mimo-v2.5",
+        {"model": "gpt-5.4", "model_candidates": ["gpt-5.4-mini", "gpt-5.4"]},
+        "gpt-5.4",
     )
 
-    assert candidates[:2] == ["mimo-v2.5-pro", "mimo-v2.5"]
+    assert candidates == ["gpt-5.4", "gpt-5.4-mini"]
 
 
 def test_parse_json_object_handles_markdown_fence_and_extra_text() -> None:

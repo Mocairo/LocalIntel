@@ -59,6 +59,22 @@ def render_markdown(run_date: str, items: list[Item], llm_summary: str, stats: d
     if llm_summary:
         lines.extend(["## LLM 摘要", "", llm_summary, ""])
 
+    briefing = stats.get("intel_briefing", {})
+    if isinstance(briefing, dict) and briefing.get("headline"):
+        lines.extend(["## 情报官日评", ""])
+        lines.append(f"**{briefing['headline']}**")
+        lines.append("")
+        if briefing.get("analysis"):
+            lines.append(briefing["analysis"])
+            lines.append("")
+        if briefing.get("watch_digest"):
+            lines.append(f"> 观察雷达：{briefing['watch_digest']}")
+            lines.append("")
+        model = briefing.get("model", "")
+        gen = "LLM" if briefing.get("generation") == "llm" else "本地规则"
+        lines.append(f"*生成方式：{gen}{f' · {model}' if model else ''}*")
+        lines.append("")
+
     grouped: dict[str, list[Item]] = defaultdict(list)
     for item in items:
         grouped[item.category].append(item)
@@ -122,6 +138,20 @@ def render_html(run_date: str, items: list[Item], llm_summary: str, stats: dict[
     errors = "".join(f"<li>{escape(str(error))}</li>" for error in stats.get("errors", []))
     llm_block = f"<section><h2>LLM 摘要</h2><pre>{escape(llm_summary)}</pre></section>" if llm_summary else ""
 
+    briefing = stats.get("intel_briefing", {})
+    briefing_block = ""
+    if isinstance(briefing, dict) and briefing.get("headline"):
+        model = briefing.get("model", "")
+        gen = "LLM" if briefing.get("generation") == "llm" else "本地规则"
+        watch = f'<p style="color:var(--muted);font-size:14px;">观察雷达：{escape(briefing.get("watch_digest", ""))}</p>' if briefing.get("watch_digest") else ""
+        briefing_block = f"""<section style="padding:18px;border:1px solid var(--line);border-radius:10px;background:linear-gradient(135deg,#fff,rgba(15,118,110,0.04));margin-bottom:24px;">
+    <h2 style="color:var(--accent);margin-top:0;">情报官日评</h2>
+    <p style="font-size:18px;font-weight:700;">{escape(briefing["headline"])}</p>
+    {'<p>' + escape(briefing.get("analysis", "")) + '</p>' if briefing.get("analysis") else ""}
+    {watch}
+    <small style="color:var(--muted);">生成方式：{gen}{f' · {escape(model)}' if model else ''}</small>
+  </section>"""
+
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -156,6 +186,7 @@ def render_html(run_date: str, items: list[Item], llm_summary: str, stats: dict[
   </header>
   <main>
     <section><h2>今日重点</h2><div class="grid">{top_html}</div></section>
+    {briefing_block}
     {llm_block}
     {''.join(section_html)}
     <section><h2>抓取状态</h2><ul>{source_counts}</ul>{f"<h3>错误</h3><ul>{errors}</ul>" if errors else ""}</section>

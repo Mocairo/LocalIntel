@@ -148,10 +148,9 @@ notepad .\.env
 
 ```text
 GITHUB_TOKEN=你的 GitHub token
-MIMO_API_KEY=你的 MiMo key
-MiMO_BASE_URL=你的 MiMo base_url
-OPENAI_API_KEY=备用 OpenAI-compatible key
-OPENAI_BASE_URL=备用 OpenAI-compatible base_url
+OPENAI_API_KEY=你的 OpenAI-compatible key
+OPENAI_BASE_URL=你的 OpenAI-compatible base_url
+MODEL_NAME=你的模型名
 # HTTPS_PROXY=http://127.0.0.1:7890
 # HTTP_PROXY=http://127.0.0.1:7890
 ```

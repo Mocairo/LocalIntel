@@ -7,6 +7,7 @@ from app.dedupe import item_hash
 from app.db import record_llm_alerts, record_llm_job
 from app.models import Item
 from app.summarizer import (
+    configured_model,
     env_value,
     parse_json_object,
     request_summary,
@@ -55,9 +56,9 @@ def build_llm_alerts(
         return []
 
     db_path = settings.app_path("data_dir") / "intel.sqlite"
-    model = str(section.get("model", "mimo-v2.5-pro"))
-    api_key_env = str(section.get("api_key_env", "MIMO_API_KEY"))
-    fallback_api_key_env = str(section.get("fallback_api_key_env", "OPENAI_API_KEY"))
+    model = configured_model(section)
+    api_key_env = str(section.get("api_key_env", "OPENAI_API_KEY"))
+    fallback_api_key_env = str(section.get("fallback_api_key_env", ""))
     api_key = env_value(api_key_env, fallback_api_key_env)
     if not api_key:
         record_llm_alerts(db_path, report_date, [])
@@ -69,8 +70,8 @@ def build_llm_alerts(
         record_llm_alerts(db_path, report_date, [])
         return []
 
-    base_url_env = str(section.get("base_url_env", "MiMO_BASE_URL"))
-    fallback_base_url_env = str(section.get("fallback_base_url_env", "OPENAI_BASE_URL"))
+    base_url_env = str(section.get("base_url_env", "OPENAI_BASE_URL"))
+    fallback_base_url_env = str(section.get("fallback_base_url_env", ""))
     base_url = env_value(base_url_env, fallback_base_url_env) or "https://api.openai.com/v1"
     model_candidates = [str(row) for row in section.get("model_candidates", []) if str(row).strip()]
     if model not in model_candidates:

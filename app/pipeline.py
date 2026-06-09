@@ -8,6 +8,7 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.alerts import build_llm_alerts
+from app.analyzer import build_intel_briefing
 from app.config import Settings, load_settings
 from app.clusters import build_clusters
 from app.db import record_clusters, record_run, save_items
@@ -82,6 +83,10 @@ def run_pipeline(
     emit_progress(progress, "alerts", "正在判断高价值信号和观察雷达", 96)
     build_llm_alerts(settings, items, day.isoformat())
     build_watch_radar(settings, items, day.isoformat())
+    emit_progress(progress, "analysis", "正在生成情报官日评", 97)
+    intel_briefing = build_intel_briefing(settings, clusters, items, db_path, day.isoformat())
+    stats["briefing_generation"] = intel_briefing.get("generation", "local_rule")
+    stats["intel_briefing"] = intel_briefing
     emit_progress(progress, "report", "正在生成报告文件", 98)
     write_run_log(settings, day.isoformat(), stats, llm_summary)
     md_path, html_path = write_reports(settings.app_path("report_dir"), day.isoformat(), items, llm_summary, stats)
@@ -134,6 +139,9 @@ def main() -> None:
     record_clusters(db_path, day.isoformat(), clusters)
     build_llm_alerts(settings, items, day.isoformat())
     build_watch_radar(settings, items, day.isoformat())
+    intel_briefing = build_intel_briefing(settings, clusters, items, db_path, day.isoformat())
+    stats["briefing_generation"] = intel_briefing.get("generation", "local_rule")
+    stats["intel_briefing"] = intel_briefing
     write_run_log(settings, day.isoformat(), stats, llm_summary)
     md_path, html_path = write_reports(settings.app_path("report_dir"), day.isoformat(), items, llm_summary, stats)
     weekly = build_weekly_report(db_path, settings.app_path("report_dir"), day.isoformat())

@@ -22,9 +22,9 @@ data_dir = "data"
 
 def test_load_settings_does_not_load_env_example_when_env_is_missing(tmp_path: Path, monkeypatch) -> None:
     config_path = write_config(tmp_path)
-    (tmp_path / ".env.example").write_text("MIMO_API_KEY=example-key\n", encoding="utf-8")
-    monkeypatch.delenv("MIMO_API_KEY", raising=False)
+    (tmp_path / ".env.example").write_text("OPENAI_API_KEY=example-key\n", encoding="utf-8")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     load_settings(config_path, tmp_path / ".env")
 
-    assert "MIMO_API_KEY" not in os.environ
+    assert "OPENAI_API_KEY" not in os.environ

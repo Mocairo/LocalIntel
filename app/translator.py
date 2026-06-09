@@ -10,7 +10,7 @@ from app.dedupe import item_hash
 from app.db import record_llm_job
 from app.http import fetch_json, post_json
 from app.models import Item
-from app.summarizer import DEFAULT_MIMO_MODEL, MIMO_MODEL_ORDER, chat_url, env_value
+from app.summarizer import DEFAULT_LLM_MODEL, chat_url, configured_model, env_value
 
 
 SUCCESS_TRANSLATION_STATUSES = {"llm", "public", "public_fallback"}
@@ -35,11 +35,11 @@ def translate_world_news(settings: Settings, items: list[Item], report_date: str
                 apply_translation(item, value, "public")
         return ""
 
-    api_key_env = str(settings.section("llm").get("api_key_env", "MIMO_API_KEY"))
-    fallback_api_key_env = str(settings.section("llm").get("fallback_api_key_env", "OPENAI_API_KEY"))
+    api_key_env = str(settings.section("llm").get("api_key_env", "OPENAI_API_KEY"))
+    fallback_api_key_env = str(settings.section("llm").get("fallback_api_key_env", ""))
     api_key = env_value(api_key_env, fallback_api_key_env)
-    base_url_env = str(settings.section("llm").get("base_url_env", "MiMO_BASE_URL"))
-    fallback_base_url_env = str(settings.section("llm").get("fallback_base_url_env", "OPENAI_BASE_URL"))
+    base_url_env = str(settings.section("llm").get("base_url_env", "OPENAI_BASE_URL"))
+    fallback_base_url_env = str(settings.section("llm").get("fallback_base_url_env", ""))
     base_url = env_value(base_url_env, fallback_base_url_env)
     if not api_key or not base_url:
         record_llm_job(db_path, report_date or "translation", "world_news_translation", "skipped", "", len(targets), "LLM API key/base_url is not set")
@@ -86,7 +86,7 @@ def translate_world_news(settings: Settings, items: list[Item], report_date: str
         report_date or "translation",
         "world_news_translation",
         job_status,
-        used_model or (model_candidates[0] if model_candidates else DEFAULT_MIMO_MODEL),
+        used_model or (model_candidates[0] if model_candidates else DEFAULT_LLM_MODEL),
         len(remaining),
         "; ".join(errors[:3]),
     )
@@ -95,19 +95,18 @@ def translate_world_news(settings: Settings, items: list[Item], report_date: str
 
 def translation_model_candidates(section: dict[str, object], llm_section: dict[str, object]) -> list[str]:
     raw: list[str] = []
+    llm_model = configured_model(llm_section)
     for value in (
+        llm_model,
         section.get("model"),
-        llm_section.get("model"),
         *list(section.get("model_candidates", []) if isinstance(section.get("model_candidates", []), list) else []),
         *list(llm_section.get("model_candidates", []) if isinstance(llm_section.get("model_candidates", []), list) else []),
     ):
         text = str(value or "").strip()
         if text:
             raw.append(text)
-    uses_mimo = not raw or any(candidate.startswith("mimo-") for candidate in raw)
-    preferred = list(MIMO_MODEL_ORDER) if uses_mimo else []
     candidates: list[str] = []
-    for candidate in preferred + raw + [DEFAULT_MIMO_MODEL]:
+    for candidate in raw or [DEFAULT_LLM_MODEL]:
         if candidate and candidate not in candidates:
             candidates.append(candidate)
     return candidates
@@ -171,7 +170,7 @@ def translate_batch(base_url: str, api_key: str, model: str, batch: list[Item], 
         },
         timeout=timeout,
         headers={"Authorization": f"Bearer {api_key}"},
-        retries=1,
+        retries=2,
     )
     if not isinstance(response, dict):
         return {}

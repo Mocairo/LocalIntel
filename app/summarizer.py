@@ -11,8 +11,7 @@ from app.http import post_json
 from app.models import Item
 
 
-DEFAULT_MIMO_MODEL = "mimo-v2.5-pro"
-MIMO_MODEL_ORDER = ("mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro")
+DEFAULT_LLM_MODEL = "gpt-5.4"
 
 
 def build_llm_summary(settings: Settings, items: list[Item], report_date: str = "") -> str:
@@ -22,19 +21,19 @@ def build_llm_summary(settings: Settings, items: list[Item], report_date: str = 
 
     db_path = settings.app_path("data_dir") / "intel.sqlite"
     job_date = report_date or "unknown"
-    model = str(section.get("model", DEFAULT_MIMO_MODEL))
-    api_key_env = str(section.get("api_key_env", "MIMO_API_KEY"))
-    fallback_api_key_env = str(section.get("fallback_api_key_env", "OPENAI_API_KEY"))
+    model = configured_model(section)
+    api_key_env = str(section.get("api_key_env", "OPENAI_API_KEY"))
+    fallback_api_key_env = str(section.get("fallback_api_key_env", ""))
     api_key = env_value(api_key_env, fallback_api_key_env)
     if not api_key:
         record_llm_job(db_path, job_date, "daily_summary", "skipped", model, len(items), f"{api_key_env} is not set")
         return local_daily_summary(items, f"LLM skipped: {api_key_env} is not set.")
 
-    base_url_env = str(section.get("base_url_env", "MiMO_BASE_URL"))
-    fallback_base_url_env = str(section.get("fallback_base_url_env", "OPENAI_BASE_URL"))
+    base_url_env = str(section.get("base_url_env", "OPENAI_BASE_URL"))
+    fallback_base_url_env = str(section.get("fallback_base_url_env", ""))
     base_url = env_value(base_url_env, fallback_base_url_env) or "https://api.openai.com/v1"
     model_candidates = configured_model_candidates(section, model)
-    max_items = int(section.get("max_items", 40))
+    max_items = int(section.get("max_items", 25))
     max_tokens = int(section.get("max_tokens", 8000))
     timeout_seconds = int(section.get("timeout_seconds", 90))
     temperature = float(section.get("temperature", 1.0))
@@ -48,7 +47,7 @@ def build_llm_summary(settings: Settings, items: list[Item], report_date: str = 
             "title": item.title,
             "url": item.url,
             "published_at": item.published_at,
-            "summary": item.compact_summary(220),
+            "summary": item.compact_summary(150),
             "rank_score": item.rank_score,
             "tags": item.tags,
         }
@@ -60,7 +59,7 @@ def build_llm_summary(settings: Settings, items: list[Item], report_date: str = 
         "直接输出 JSON，不要 Markdown。"
         '格式：{"overview":"80字内中文总览","highlights":["hash"],'
         '"items":[{"hash":"hash","zh_summary":"一句话中文摘要","why":"重要原因",'
-        '"risk":"风险提示","action":"建议动作","importance":1,"tags":["标签"]}]}。'
+        '"importance":1,"tags":["标签"]}]}。'
         "importance 为 1-5，highlights 最多 5 个。"
     )
     response: object = {}
@@ -133,14 +132,18 @@ def build_llm_summary(settings: Settings, items: list[Item], report_date: str = 
 
 def configured_model_candidates(section: dict[str, object], model: str) -> list[str]:
     raw_candidates = [str(row).strip() for row in section.get("model_candidates", []) if str(row).strip()]
-    raw_candidates.insert(0, str(model).strip() or DEFAULT_MIMO_MODEL)
-    uses_mimo = any(candidate.startswith("mimo-") for candidate in raw_candidates)
-    preferred = list(MIMO_MODEL_ORDER) if uses_mimo else []
+    raw_candidates.insert(0, str(model).strip() or DEFAULT_LLM_MODEL)
     candidates: list[str] = []
-    for candidate in preferred + raw_candidates:
+    for candidate in raw_candidates:
         if candidate and candidate not in candidates:
             candidates.append(candidate)
-    return candidates or [DEFAULT_MIMO_MODEL]
+    return candidates or [DEFAULT_LLM_MODEL]
+
+
+def configured_model(section: dict[str, object], default: str = DEFAULT_LLM_MODEL) -> str:
+    model_env = str(section.get("model_env") or "").strip()
+    from_env = env_value(model_env) if model_env else ""
+    return from_env or str(section.get("model") or default).strip() or default
 
 
 def token_budgets(max_tokens: int) -> list[int]:
@@ -176,7 +179,7 @@ def request_summary(
         },
         timeout=timeout_seconds,
         headers={"Authorization": f"Bearer {api_key}"},
-        retries=1,
+        retries=2,
     )
 
 
